@@ -1,0 +1,178 @@
+[
+    {
+        "id": "3017620425035",
+        "name": "Nutella",
+        "environmental_score_data": {
+            "adjusted_score": 31,
+            "material_scores": {
+                "C_PAP_82": {
+                    "environmental_score_material_score": 0,
+                    "environmental_score_shape_ratio": 0.1,
+                    "material": "film",
+                    "packaging_id": "en:c-pap-82",
+                    "shape": "en:film",
+                    "shape_id": "en:film"
+                },
+                "PAP_21": {
+                    "environmental_score_material_score": 21,
+                    "environmental_score_shape_ratio": 0.2,
+                    "material": "lid",
+                    "packaging_id": "en:pap-21",
+                    "shape": "en:lid",
+                    "shape_id": "en:lid"
+                },
+                "PP_5": {
+                    "environmental_score_material_score": 81,
+                    "environmental_score_shape_ratio": 1,
+                    "material": "lid",
+                    "packaging_id": "en:pp-5",
+                    "shape": "en:lid",
+                    "shape_id": "en:lid"
+                },
+                "GL_70": {
+                    "environmental_score_material_score": 92,
+                    "environmental_score_shape_ratio": 1,
+                    "material": "jar",
+                    "packaging_id": "en:gl-70",
+                    "shape": "en:jar",
+                    "shape_id": "en:jar"
+                }
+            },
+            "overall_grade": "d",
+            "packaging_score": 31
+        },
+        "categories": "Petit-déjeuners,Produits à tartiner,Produits à tartiner sucrés,Pâtes à tartiner,Pâtes à tartiner aux noisettes,Pâtes à tartiner au chocolat,Pâtes à tartiner aux noisettes et au cacao",
+        "labels": [
+            "Sans gluten",
+            "Sans conservateurs",
+            "Sans colorants",
+            "Sans matière grasse hydrogénée",
+            "Triman",
+            "Végétarien"
+        ]
+    },
+    {
+        "id": "8076809513204",
+        "name": "Organic Almond Butter",
+        "environmental_score_data": {
+            "adjusted_score": 62,
+            "material_scores": {
+                "GL_70": {
+                    "environmental_score_material_score": 92,
+                    "environmental_score_shape_ratio": 1,
+                    "material": "jar",
+                    "packaging_id": "en:gl-70",
+                    "shape": "en:jar",
+                    "shape_id": "en:jar"
+                },
+                "METAL_40": {
+                    "environmental_score_material_score": 0,
+                    "environmental_score_shape_ratio": 0.2,
+                    "material": "lid",
+                    "packaging_id": "en:metal-40",
+                    "shape": "en:lid",
+                    "shape_id": "en:lid"
+                }
+            },
+            "overall_grade": "b",
+            "packaging_score": 62
+        },
+        "categories": "Bio,Aliments biologiques,Beurres,Beurres de fruits à coque,Beurres d'amande",
+        "labels": [
+            "Bio",
+            "Bio européen",
+            "Agriculture biologique",
+            "Sans gluten",
+            "Sans huile de palme",
+            "AB Agriculture Biologique"
+        ]
+    },
+    {
+        "id": "7622210951107",
+        "name": "Toblerone",
+        "environmental_score_data": {
+            "adjusted_score": 21,
+            "material_scores": {
+                "CARD_20": {
+                    "environmental_score_material_score": 21,
+                    "environmental_score_shape_ratio": 1,
+                    "material": "box",
+                    "packaging_id": "en:card-20",
+                    "shape": "en:box",
+                    "shape_id": "en:box"
+                },
+                "LDPE_4": {
+                    "environmental_score_material_score": 81,
+                    "environmental_score_shape_ratio": 0.2,
+                    "material": "wrapper",
+                    "packaging_id": "en:ldpe-4",
+                    "shape": "en:wrapper",
+                    "shape_id": "en:wrapper"
+                }
+            },
+            "overall_grade": "e",
+            "packaging_score": 21
+        },
+        "categories": "Snacks,Confiseries,Chocolats,Chocolats au lait,Chocolats aux fruits à coque,Chocolats aux amandes",
+        "labels": [
+            "Sustainable",
+            "Rainforest Alliance",
+            "UTZ Certified",
+            "Cocoa Life"
+        ]
+    },
+    {
+        "id": "4056489314158",
+        "name": "Haribo Goldbears",
+        "environmental_score_data": {
+            "adjusted_score": 54,
+            "material_scores": {
+                "PE_90": {
+                    "environmental_score_material_score": 81,
+                    "environmental_score_shape_ratio": 1,
+                    "material": "bag",
+                    "packaging_id": "en:pe-90",
+                    "shape": "en:bag",
+                    "shape_id": "en:bag"
+                }
+            },
+            "overall_grade": "c",
+            "packaging_score": 54
+        },
+        "categories": "Snacks,Confiseries,Bonbons,Bonbons gélifiés,Oursons en gélatine",
+        "labels": [
+            "Sans colorants artificiels",
+            "Sans arômes artificiels",
+            "Point Vert"
+        ]
+    },
+    {
+        "id": "2000000123456",
+        "name": "Coca-Cola Classic",
+        "environmental_score_data": {
+            "adjusted_score": 44,
+            "material_scores": {
+                "PET_1": {
+                    "environmental_score_material_score": 72,
+                    "environmental_score_shape_ratio": 1,
+                    "material": "bottle",
+                    "packaging_id": "en:pet-1",
+                    "shape": "en:bottle",
+                    "shape_id": "en:bottle"
+                },
+                "HDPE_2": {
+                    "environmental_score_material_score": 76,
+                    "environmental_score_shape_ratio": 0.1,
+                    "material": "cap",
+                    "packaging_id": "en:hdpe-2",
+                    "shape": "en:cap",
+                    "shape_id": "en:cap"
+                }
+            },
+            "overall_grade": "d",
+            "packaging_score": 44
+        },
+        "categories": "Boissons,Boissons gazeuses,Sodas au cola",
+        "labels": ["Recyclable", "PlantBottle", "World Wildlife Fund"]
+    }
+]

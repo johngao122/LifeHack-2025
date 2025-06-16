@@ -1,0 +1,10 @@
+{
+    "manifest_version": 3,
+    "name": "EcoLens",
+    "description": "EcoLens is a tool that helps you track your carbon footprint and reduce your environmental impact.",
+    "version": "1.0",
+    "action": {
+        "default_popup": "index.html"
+    },
+    "permissions": ["activeTab", "scripting"]
+}
