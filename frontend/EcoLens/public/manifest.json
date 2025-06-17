@@ -12,7 +12,8 @@
             "matches": ["<all_urls>"],
             "js": ["contentScript.js"],
             "run_at": "document_end",
-            "all_frames": true
+            "all_frames": true,
+            "type": "module"
         }
     ],
     "content_security_policy": {
