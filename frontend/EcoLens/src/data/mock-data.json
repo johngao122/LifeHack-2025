@@ -1,0 +1,61 @@
+{
+    "id": "3017620425035",
+    "name": "Nutella",
+    "environmental_score_data": {
+        "adjusted_score": 31,
+        "material_scores": {
+            "C_PAP_82": {
+                "environmental_score_material_score": 0,
+                "environmental_score_shape_ratio": 0.1,
+                "material": "film",
+                "packaging_id": "en:c-pap-82",
+                "shape": "en:film",
+                "shape_id": "en:film"
+            },
+            "PAP_21": {
+                "environmental_score_material_score": 21,
+                "environmental_score_shape_ratio": 0.2,
+                "material": "lid",
+                "packaging_id": "en:pap-21",
+                "shape": "en:lid",
+                "shape_id": "en:lid"
+            },
+            "PP_5": {
+                "environmental_score_material_score": 81,
+                "environmental_score_shape_ratio": 1,
+                "material": "lid",
+                "packaging_id": "en:pp-5",
+                "shape": "en:lid",
+                "shape_id": "en:lid"
+            },
+            "GL_70": {
+                "environmental_score_material_score": 92,
+                "environmental_score_shape_ratio": 1,
+                "material": "jar",
+                "packaging_id": "en:gl-70",
+                "shape": "en:jar",
+                "shape_id": "en:jar"
+            }
+        },
+        "overall_grade": "d",
+        "packaging_score": 31,
+        "agribalyse": {
+            "co2_total": 3.1682563777,
+            "co2_agriculture": 2.7858188,
+            "co2_consumption": 0.080351049,
+            "co2_distribution": 0.0084079787,
+            "co2_packaging": 0.12481309,
+            "co2_processing": 0,
+            "co2_transportation": 0.16886546
+        }
+    },
+    "categories": "Petit-déjeuners,Produits à tartiner,Produits à tartiner sucrés,Pâtes à tartiner,Pâtes à tartiner aux noisettes,Pâtes à tartiner au chocolat,Pâtes à tartiner aux noisettes et au cacao",
+    "labels": [
+        "Sans gluten",
+        "Sans conservateurs",
+        "Sans colorants",
+        "Sans matière grasse hydrogénée",
+        "Triman",
+        "Végétarien"
+    ]
+}
