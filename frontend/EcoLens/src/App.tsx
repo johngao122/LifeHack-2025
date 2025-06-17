@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { cleanSearchTerm } from "./utils/productCleaner";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Button } from "./components/ui/button";
+import { Switch } from "./components/ui/switch";
 
 interface ProductInfo {
     name: string;
@@ -16,6 +17,31 @@ function App() {
     const [loading, setLoading] = useState(false);
     const [searchResults, setSearchResults] = useState<ProductInfo[]>([]);
     const [hasSearched, setHasSearched] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
+    const [autoPopupEnabled, setAutoPopupEnabled] = useState(true);
+
+    useEffect(() => {
+        chrome.storage.sync.get(["autoPopupEnabled"], (result) => {
+            if (result.autoPopupEnabled !== undefined) {
+                setAutoPopupEnabled(result.autoPopupEnabled);
+            }
+        });
+    }, []);
+
+    const handleSettingsToggle = async (enabled: boolean) => {
+        setAutoPopupEnabled(enabled);
+
+        chrome.storage.sync.set({ autoPopupEnabled: enabled });
+
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs[0]?.id) {
+                chrome.tabs.sendMessage(tabs[0].id, {
+                    action: "updateAutoPopup",
+                    enabled: enabled,
+                });
+            }
+        });
+    };
 
     const handleSearch = async () => {
         if (!searchTerm.trim()) return;
@@ -59,31 +85,109 @@ function App() {
     };
 
     return (
-        <div className="w-96 p-4 bg-white">
+        <div className="w-96 p-4 bg-white overflow-hidden">
             <div className="mb-6">
-                <div className="flex items-center gap-2 mb-2">
-                    <motion.div
-                        animate={{
-                            rotate: [0, 10, -10, 0],
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                        <motion.div
+                            animate={{
+                                rotate: [0, 10, -10, 0],
+                            }}
+                            transition={{
+                                duration: 1.5,
+                                repeat: Infinity,
+                                repeatDelay: 3,
+                            }}
+                            className="text-2xl"
+                        >
+                            🌱
+                        </motion.div>
+                        <h1 className="text-xl font-bold text-gray-800">
+                            EcoLens Food Tracker
+                        </h1>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowSettings(!showSettings)}
+                        className="!text-gray-600 hover:!text-gray-800 !p-1 !m-0 !bg-transparent hover:!bg-gray-100 !border-0 !shadow-none !outline-none focus:!outline-none focus:!ring-0 !min-w-0 !h-auto"
+                        style={{
+                            fontSize: "18px",
+                            lineHeight: "1",
+                            padding: "4px",
+                            margin: "0",
+                            border: "none",
+                            background: "transparent",
                         }}
-                        transition={{
-                            duration: 1.5,
-                            repeat: Infinity,
-                            repeatDelay: 3,
-                        }}
-                        className="text-2xl"
                     >
-                        🌱
-                    </motion.div>
-                    <h1 className="text-xl font-bold text-gray-800">
-                        EcoLens Food Tracker
-                    </h1>
+                        ⚙️
+                    </Button>
                 </div>
                 <p className="text-sm text-gray-600">
                     Search for food products to analyze their environmental
                     impact
                 </p>
             </div>
+
+            {/* Settings Panel */}
+            {showSettings && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mb-4"
+                >
+                    <Card className="border-blue-200 bg-blue-50">
+                        <CardHeader>
+                            <CardTitle className="text-sm text-blue-800 flex items-center justify-between">
+                                <span className="flex items-center gap-2">
+                                    ⚙️ Settings
+                                </span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowSettings(false)}
+                                    className="!text-blue-600 hover:!text-blue-800 !p-1 !m-0 !bg-transparent hover:!bg-blue-50 !border-0 !shadow-none !outline-none focus:!outline-none focus:!ring-0 !min-w-0 !h-auto"
+                                    style={{
+                                        fontSize: "16px",
+                                        lineHeight: "1",
+                                        padding: "2px",
+                                        margin: "0",
+                                        border: "none",
+                                        background: "transparent",
+                                    }}
+                                >
+                                    ✕
+                                </Button>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm text-blue-800 font-medium">
+                                        Automatic Pop-ups
+                                    </p>
+                                    <p className="text-xs text-blue-600">
+                                        Show sustainability alerts when browsing
+                                        food products
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={autoPopupEnabled}
+                                    onCheckedChange={handleSettingsToggle}
+                                    className="!bg-gray-300 data-[state=checked]:!bg-green-600 !border-0"
+                                    style={{
+                                        backgroundColor: autoPopupEnabled
+                                            ? "#059669"
+                                            : "#d1d5db",
+                                        borderColor: "transparent",
+                                    }}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+            )}
 
             <div className="mb-4 space-y-3">
                 <div className="relative">

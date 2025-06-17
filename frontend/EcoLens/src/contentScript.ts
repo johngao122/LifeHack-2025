@@ -1404,6 +1404,9 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
             console.error("[EcoLens] Error in message handler:", error);
             sendResponse({ products: [], error: String(error) });
         }
+    } else if (request.action === "updateAutoPopup") {
+        autoPopupEnabled = request.enabled;
+        console.log("[EcoLens] Auto-popup setting updated:", autoPopupEnabled);
     }
 
     return true;
@@ -1414,6 +1417,7 @@ let retryCount = 0;
 const maxRetries = 5;
 let popupShownForUrl = new Set<string>();
 let isProcessing = false;
+let autoPopupEnabled = true;
 
 const checkForProducts = (currentUrl: string, isRetry = false) => {
     if (isProcessing) {
@@ -1462,10 +1466,19 @@ const checkForProducts = (currentUrl: string, isRetry = false) => {
                     );
                 }
 
-                try {
-                    scraper.showProductDetectedPopup(products);
-                } catch (e) {
-                    console.warn("[EcoLens] Could not show product popup:", e);
+                if (autoPopupEnabled) {
+                    try {
+                        scraper.showProductDetectedPopup(products);
+                    } catch (e) {
+                        console.warn(
+                            "[EcoLens] Could not show product popup:",
+                            e
+                        );
+                    }
+                } else {
+                    console.log(
+                        "[EcoLens] Auto-popup disabled, skipping popup display"
+                    );
                 }
             }
         } else if (isRetry && retryCount < maxRetries) {
@@ -1547,19 +1560,50 @@ function initializeEcoLens() {
     }
     (window as any).ecoLensInitialized = true;
 
+    console.log("[EcoLens] Initializing on:", window.location.href);
+
     try {
-        console.log("[EcoLens] Initializing on:", window.location.href);
+        chrome.storage.sync.get(["autoPopupEnabled"], (result) => {
+            if (result.autoPopupEnabled !== undefined) {
+                autoPopupEnabled = result.autoPopupEnabled;
+            }
+            console.log(
+                "[EcoLens] Loaded auto-popup setting:",
+                autoPopupEnabled
+            );
 
-        const scraper = new ProductScraper();
+            try {
+                const scraper = new ProductScraper();
+                const isFoodPage = scraper.isFoodPage();
+                console.log("[EcoLens] Is food page:", isFoodPage);
 
-        const isFoodPage = scraper.isFoodPage();
-        console.log("[EcoLens] Is food page:", isFoodPage);
-
-        if (isFoodPage) {
-            checkForProducts(window.location.href, false);
-        }
+                if (isFoodPage) {
+                    checkForProducts(window.location.href, false);
+                }
+            } catch (error) {
+                console.error(
+                    "[EcoLens] Error during product checking:",
+                    error
+                );
+            }
+        });
     } catch (error) {
-        console.error("[EcoLens] Error during initialization:", error);
+        console.warn("[EcoLens] Could not load settings:", error);
+
+        try {
+            const scraper = new ProductScraper();
+            const isFoodPage = scraper.isFoodPage();
+            console.log("[EcoLens] Is food page:", isFoodPage);
+
+            if (isFoodPage) {
+                checkForProducts(window.location.href, false);
+            }
+        } catch (error) {
+            console.error(
+                "[EcoLens] Error during fallback initialization:",
+                error
+            );
+        }
     }
 }
 
