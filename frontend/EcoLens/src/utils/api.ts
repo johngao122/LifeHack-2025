@@ -1,5 +1,4 @@
-import mockData from "../data/mock-data.json";
-import mockRecommendations from "../data/mock-reccomendations.json";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const PLASTIC_CODES: Record<number, string> = {
     1: "PET/PETE (Polyethylene Terephthalate)",
@@ -36,48 +35,113 @@ const METAL_CODES: Record<number, string> = {
 
 /**
  * Parses recycling codes and returns material information
- * @param code - The recycling code (e.g., "PP_5", "PAP_21", "GL_70")
+ * @param code - The recycling code (e.g., "PP_5", "PAP_21", "GL_70", "CLEAR_GLASS", "PP_5_POLYPROPYLENE")
  * @returns Object with code number and material name
  */
 const parseRecyclingCode = (
     code: string
 ): { codeNumber: number | null; materialName: string } => {
-    const numberMatch = code.match(/(\d+)$/);
+    const upperCode = code.toUpperCase();
+
+    if (upperCode === "CLEAR_GLASS") {
+        return { codeNumber: 70, materialName: "Clear Glass" };
+    }
+    if (upperCode === "GREEN_GLASS") {
+        return { codeNumber: 71, materialName: "Green Glass" };
+    }
+    if (upperCode === "BROWN_GLASS") {
+        return { codeNumber: 72, materialName: "Brown Glass" };
+    }
+
+    if (upperCode.includes("PP_5") || upperCode.includes("POLYPROPYLENE")) {
+        return { codeNumber: 5, materialName: "PP (Polypropylene)" };
+    }
+    if (upperCode.includes("PET") || upperCode.includes("PETE")) {
+        return {
+            codeNumber: 1,
+            materialName: "PET/PETE (Polyethylene Terephthalate)",
+        };
+    }
+    if (upperCode.includes("HDPE")) {
+        return {
+            codeNumber: 2,
+            materialName: "HDPE (High-Density Polyethylene)",
+        };
+    }
+    if (upperCode.includes("PVC")) {
+        return { codeNumber: 3, materialName: "PVC (Polyvinyl Chloride)" };
+    }
+    if (upperCode.includes("LDPE")) {
+        return {
+            codeNumber: 4,
+            materialName: "LDPE (Low-Density Polyethylene)",
+        };
+    }
+    if (upperCode.includes("PS") || upperCode.includes("POLYSTYRENE")) {
+        return { codeNumber: 6, materialName: "PS (Polystyrene)" };
+    }
+
+    if (upperCode.includes("CORRUGATED") && upperCode.includes("CARDBOARD")) {
+        return { codeNumber: 20, materialName: "Corrugated Cardboard" };
+    }
+    if (
+        upperCode.includes("NON_CORRUGATED") &&
+        upperCode.includes("CARDBOARD")
+    ) {
+        return { codeNumber: 21, materialName: "Non-Corrugated Cardboard" };
+    }
+    if (upperCode.includes("C_PAP") || upperCode.includes("PAP")) {
+        if (upperCode.includes("82")) {
+            return { codeNumber: 82, materialName: "Paper/Aluminum Composite" };
+        }
+        if (upperCode.includes("81")) {
+            return { codeNumber: 81, materialName: "Paper/Plastic Composite" };
+        }
+        if (upperCode.includes("20")) {
+            return { codeNumber: 20, materialName: "Corrugated Cardboard" };
+        }
+        return { codeNumber: 22, materialName: "Paper" };
+    }
+
+    if (upperCode.includes("STEEL") || upperCode.includes("FE")) {
+        return { codeNumber: 40, materialName: "Steel" };
+    }
+    if (upperCode.includes("ALUMINUM") || upperCode.includes("ALU")) {
+        return { codeNumber: 41, materialName: "Aluminum" };
+    }
+
+    const numberMatch = code.match(/(\d+)/);
     const codeNumber = numberMatch ? parseInt(numberMatch[1]) : null;
 
-    if (!codeNumber) {
-        return { codeNumber: null, materialName: "Unknown Material" };
+    if (codeNumber) {
+        if (codeNumber >= 1 && codeNumber <= 7) {
+            return {
+                codeNumber,
+                materialName: PLASTIC_CODES[codeNumber] || "Unknown Plastic",
+            };
+        }
+        if (codeNumber >= 20 && codeNumber <= 85) {
+            return {
+                codeNumber,
+                materialName:
+                    PAPER_CODES[codeNumber] || "Unknown Paper Product",
+            };
+        }
+        if (codeNumber >= 70 && codeNumber <= 72) {
+            return {
+                codeNumber,
+                materialName: GLASS_CODES[codeNumber] || "Clear Glass",
+            };
+        }
+        if (codeNumber === 40 || codeNumber === 41) {
+            return {
+                codeNumber,
+                materialName: METAL_CODES[codeNumber] || "Unknown Metal",
+            };
+        }
     }
 
-    if (code.includes("PP") || (codeNumber >= 1 && codeNumber <= 7)) {
-        return {
-            codeNumber,
-            materialName: PLASTIC_CODES[codeNumber] || "Unknown Plastic",
-        };
-    }
-
-    if (code.includes("PAP") || code.includes("C_PAP")) {
-        return {
-            codeNumber,
-            materialName: PAPER_CODES[codeNumber] || "Unknown Paper Product",
-        };
-    }
-
-    if (code.includes("GL")) {
-        return {
-            codeNumber,
-            materialName: GLASS_CODES[codeNumber] || "Unknown Glass",
-        };
-    }
-
-    if (code.includes("FE") || code.includes("ALU")) {
-        return {
-            codeNumber,
-            materialName: METAL_CODES[codeNumber] || "Unknown Metal",
-        };
-    }
-
-    return { codeNumber, materialName: "Unknown Material" };
+    return { codeNumber: null, materialName: "Unknown Material" };
 };
 
 export interface MaterialScore {
@@ -111,7 +175,7 @@ export interface ProductData {
     id: string;
     name: string;
     environmental_score_data: EnvironmentalScoreData;
-    categories: string;
+    categories: string[];
     labels: string[];
 }
 
@@ -193,14 +257,26 @@ const calculateCarbonBreakdown = (
 };
 
 /**
- * Retrieves and formats product information from mock data
- * @param productName - The product name to retrieve (optional, defaults to mock data)
+ * Retrieves and formats product information from API
+ * @param productName - The product name to retrieve
  * @returns Formatted product data for frontend consumption
  */
-export const getProductInfo = async (): Promise<FormattedProductData> => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+export const getProductInfo = async (
+    productName: string
+): Promise<FormattedProductData> => {
+    const response = await fetch(`${API_BASE_URL}/product`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ product_name: productName }),
+    });
 
-    const rawData = mockData as ProductData;
+    if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+    }
+
+    const rawData = (await response.json()) as ProductData;
 
     const formattedData: FormattedProductData = {
         id: rawData.id,
@@ -208,7 +284,7 @@ export const getProductInfo = async (): Promise<FormattedProductData> => {
         environmentalScore: rawData.environmental_score_data.adjusted_score,
         grade: rawData.environmental_score_data.overall_grade.toUpperCase(),
         packagingScore: rawData.environmental_score_data.packaging_score,
-        categories: rawData.categories.split(",").map((cat) => cat.trim()),
+        categories: rawData.categories,
         labels: rawData.labels,
         carbonFootprint: {
             totalCo2Per100g: Math.round(
@@ -242,11 +318,9 @@ export const getProductInfo = async (): Promise<FormattedProductData> => {
 
 export interface RecommendationItem {
     id: string;
-    name: string;
-    environmental_score_data: {
-        adjusted_score: number;
-        overall_grade: string;
-    };
+    product_name: string;
+    ecoscore_score: number;
+    ecoscore_grade: string;
 }
 
 export interface RecommendationsData {
@@ -266,26 +340,39 @@ export interface FormattedRecommendationsData {
 }
 
 /**
- * Retrieves and formats product recommendations from mock data
+ * Retrieves and formats product recommendations from API
+ * @param categories - Array of product categories to get recommendations for
  * @returns Formatted recommendations data for frontend consumption
  */
-export const getRecommendations =
-    async (): Promise<FormattedRecommendationsData> => {
-        await new Promise((resolve) => setTimeout(resolve, 300));
+export const getRecommendations = async (
+    categories: string[]
+): Promise<FormattedRecommendationsData> => {
+    const response = await fetch(`${API_BASE_URL}/recommendations`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ categories }),
+    });
 
-        const rawData = mockRecommendations as RecommendationsData;
+    if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+    }
 
-        const formattedRecommendations: FormattedRecommendation[] =
-            rawData.recommendations.map((item) => ({
-                id: item.id,
-                name: item.name,
-                environmentalScore:
-                    item.environmental_score_data.adjusted_score,
-                grade: item.environmental_score_data.overall_grade.toUpperCase(),
-            }));
+    const rawData = (await response.json()) as RecommendationsData;
 
-        return {
-            recommendations: formattedRecommendations,
-            count: formattedRecommendations.length,
-        };
+    const formattedRecommendations: FormattedRecommendation[] =
+        rawData.recommendations.map((item) => ({
+            id: item.id,
+            name: item.product_name,
+            environmentalScore: item.ecoscore_score || 0,
+            grade: item.ecoscore_grade
+                ? item.ecoscore_grade.toUpperCase()
+                : "N/A",
+        }));
+
+    return {
+        recommendations: formattedRecommendations,
+        count: formattedRecommendations.length,
     };
+};

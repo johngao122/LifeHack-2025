@@ -36,18 +36,34 @@ const ProductSustainabilityReport = () => {
                 if (typeof chrome !== "undefined" && chrome.storage) {
                     const result = await chrome.storage.local.get([
                         "detectedProduct",
+                        "productData",
+                        "recommendations",
                     ]);
+
                     if (result.detectedProduct) {
                         setDetectedProduct(result.detectedProduct);
                     }
-                }
 
-                const [product, recs] = await Promise.all([
-                    getProductInfo(),
-                    getRecommendations(),
-                ]);
-                setProductData(product);
-                setRecommendations(recs);
+                    if (result.productData && result.recommendations) {
+                        setProductData(result.productData);
+                        setRecommendations(result.recommendations);
+                    } else if (result.detectedProduct) {
+                        const productData = await getProductInfo(
+                            result.detectedProduct.name
+                        );
+
+                        const topCategories = productData.categories.slice(
+                            0,
+                            3
+                        );
+                        const recommendations = await getRecommendations(
+                            topCategories
+                        );
+
+                        setProductData(productData);
+                        setRecommendations(recommendations);
+                    }
+                }
             } catch (error) {
                 console.error("Error fetching data:", error);
             } finally {
@@ -159,8 +175,8 @@ const ProductSustainabilityReport = () => {
                             <div className="flex items-center justify-between">
                                 <h3 className="text-2xl font-bold text-gray-900">
                                     {detectedProduct
-                                        ? detectedProduct.name
-                                        : productData.name}
+                                        ? detectedProduct.name.toUpperCase()
+                                        : productData.name.toUpperCase()}
                                 </h3>
                                 <Badge
                                     className={`text-xl font-bold px-6 py-3 ${getGradeColor(

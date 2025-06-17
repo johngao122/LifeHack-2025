@@ -1193,7 +1193,7 @@ class ProductScraper {
         }
     }
 
-    private proceedWithGreenScore(product: ProductInfo): void {
+    private async proceedWithGreenScore(product: ProductInfo): Promise<void> {
         try {
             const popupToRemove = document.getElementById(
                 "ecolens-product-popup"
@@ -1209,7 +1209,27 @@ class ProductScraper {
                 }, 300);
             }
 
-            setTimeout(() => {
+            setTimeout(async () => {
+                const spinnerStyle = document.createElement("style");
+                spinnerStyle.textContent = `
+                    @keyframes ecolens-spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    .ecolens-spinner {
+                        border: 2px solid rgba(255, 255, 255, 0.3);
+                        border-radius: 50%;
+                        border-top: 2px solid white;
+                        width: 16px;
+                        height: 16px;
+                        animation: ecolens-spin 1s linear infinite;
+                        display: inline-block;
+                        margin-right: 8px;
+                        vertical-align: middle;
+                    }
+                `;
+                document.head.appendChild(spinnerStyle);
+
                 const successPopup = document.createElement("div");
                 successPopup.innerHTML = `
                         <div style="
@@ -1225,15 +1245,474 @@ class ProductScraper {
                             font-family: system-ui, sans-serif;
                             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                             animation: ecolens-slide-in 0.3s ease;
+                            display: flex;
+                            align-items: center;
                         ">
-                            🌱 Analyzing "${product.cleanedName}" Green Score...
+                            <div class="ecolens-spinner"></div>
+                            <span>🌱 Analyzing "${product.cleanedName}" Green Score...</span>
                         </div>
                     `;
                 document.body.appendChild(successPopup);
 
-                setTimeout(() => {
-                    successPopup.remove();
+                try {
+                    console.log(
+                        "[EcoLens] Starting API calls for product:",
+                        product.cleanedName
+                    );
 
+                    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+                    console.log(
+                        "[EcoLens] Calling product API for:",
+                        product.cleanedName
+                    );
+
+                    const productResponse = await fetch(
+                        `${apiBaseUrl}/product`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({
+                                product_name: product.cleanedName,
+                            }),
+                        }
+                    );
+
+                    if (!productResponse.ok) {
+                        throw new Error(
+                            `Product API request failed: ${productResponse.status}`
+                        );
+                    }
+
+                    const rawProductData = await productResponse.json();
+                    console.log(
+                        "[EcoLens] Raw product data received:",
+                        rawProductData
+                    );
+
+                    const productData = {
+                        id: rawProductData.id,
+                        name: rawProductData.name,
+                        environmentalScore:
+                            rawProductData.environmental_score_data
+                                .adjusted_score,
+                        grade: rawProductData.environmental_score_data.overall_grade.toUpperCase(),
+                        packagingScore:
+                            rawProductData.environmental_score_data
+                                .packaging_score,
+                        categories: rawProductData.categories,
+                        labels: rawProductData.labels,
+                        carbonFootprint: {
+                            totalCo2Per100g: Math.round(
+                                rawProductData.environmental_score_data
+                                    .agribalyse.co2_total * 100
+                            ),
+                            totalCo2PerKg: Math.round(
+                                rawProductData.environmental_score_data
+                                    .agribalyse.co2_total * 1000
+                            ),
+                            breakdown: {
+                                agriculture: {
+                                    value: rawProductData
+                                        .environmental_score_data.agribalyse
+                                        .co2_agriculture,
+                                    percentage:
+                                        Math.round(
+                                            (rawProductData
+                                                .environmental_score_data
+                                                .agribalyse.co2_agriculture /
+                                                rawProductData
+                                                    .environmental_score_data
+                                                    .agribalyse.co2_total) *
+                                                1000
+                                        ) / 10,
+                                },
+                                consumption: {
+                                    value: rawProductData
+                                        .environmental_score_data.agribalyse
+                                        .co2_consumption,
+                                    percentage:
+                                        Math.round(
+                                            (rawProductData
+                                                .environmental_score_data
+                                                .agribalyse.co2_consumption /
+                                                rawProductData
+                                                    .environmental_score_data
+                                                    .agribalyse.co2_total) *
+                                                1000
+                                        ) / 10,
+                                },
+                                distribution: {
+                                    value: rawProductData
+                                        .environmental_score_data.agribalyse
+                                        .co2_distribution,
+                                    percentage:
+                                        Math.round(
+                                            (rawProductData
+                                                .environmental_score_data
+                                                .agribalyse.co2_distribution /
+                                                rawProductData
+                                                    .environmental_score_data
+                                                    .agribalyse.co2_total) *
+                                                1000
+                                        ) / 10,
+                                },
+                                packaging: {
+                                    value: rawProductData
+                                        .environmental_score_data.agribalyse
+                                        .co2_packaging,
+                                    percentage:
+                                        Math.round(
+                                            (rawProductData
+                                                .environmental_score_data
+                                                .agribalyse.co2_packaging /
+                                                rawProductData
+                                                    .environmental_score_data
+                                                    .agribalyse.co2_total) *
+                                                1000
+                                        ) / 10,
+                                },
+                                processing: {
+                                    value: rawProductData
+                                        .environmental_score_data.agribalyse
+                                        .co2_processing,
+                                    percentage:
+                                        Math.round(
+                                            (rawProductData
+                                                .environmental_score_data
+                                                .agribalyse.co2_processing /
+                                                rawProductData
+                                                    .environmental_score_data
+                                                    .agribalyse.co2_total) *
+                                                1000
+                                        ) / 10,
+                                },
+                                transportation: {
+                                    value: rawProductData
+                                        .environmental_score_data.agribalyse
+                                        .co2_transportation,
+                                    percentage:
+                                        Math.round(
+                                            (rawProductData
+                                                .environmental_score_data
+                                                .agribalyse.co2_transportation /
+                                                rawProductData
+                                                    .environmental_score_data
+                                                    .agribalyse.co2_total) *
+                                                1000
+                                        ) / 10,
+                                },
+                            },
+                        },
+                        materialBreakdown: Object.entries(
+                            rawProductData.environmental_score_data
+                                .material_scores || {}
+                        ).map(([key, material]: [string, any]) => {
+                            const parseRecyclingCode = (code: string) => {
+                                const PLASTIC_CODES: Record<number, string> = {
+                                    1: "PET/PETE (Polyethylene Terephthalate)",
+                                    2: "HDPE (High-Density Polyethylene)",
+                                    3: "PVC (Polyvinyl Chloride)",
+                                    4: "LDPE (Low-Density Polyethylene)",
+                                    5: "PP (Polypropylene)",
+                                    6: "PS (Polystyrene)",
+                                    7: "Other Plastics",
+                                };
+
+                                const PAPER_CODES: Record<number, string> = {
+                                    20: "Corrugated Cardboard",
+                                    21: "Mixed Paper",
+                                    22: "Paper",
+                                    23: "Paperboard",
+                                    81: "Paper/Plastic Composite",
+                                    82: "Paper/Aluminum Composite",
+                                    83: "Paper/Tinplate Composite",
+                                    84: "Paper/Plastic/Aluminum Composite",
+                                    85: "Paper/Plastic/Aluminum/Tinplate Composite",
+                                };
+
+                                const GLASS_CODES: Record<number, string> = {
+                                    70: "Clear Glass",
+                                    71: "Green Glass",
+                                    72: "Brown Glass",
+                                };
+
+                                const METAL_CODES: Record<number, string> = {
+                                    40: "Steel",
+                                    41: "Aluminum",
+                                };
+
+                                const upperCode = code.toUpperCase();
+
+                                if (upperCode === "CLEAR_GLASS") {
+                                    return {
+                                        codeNumber: 70,
+                                        materialName: "Clear Glass",
+                                    };
+                                }
+                                if (upperCode === "GREEN_GLASS") {
+                                    return {
+                                        codeNumber: 71,
+                                        materialName: "Green Glass",
+                                    };
+                                }
+                                if (upperCode === "BROWN_GLASS") {
+                                    return {
+                                        codeNumber: 72,
+                                        materialName: "Brown Glass",
+                                    };
+                                }
+
+                                if (
+                                    upperCode.includes("PP_5") ||
+                                    upperCode.includes("POLYPROPYLENE")
+                                ) {
+                                    return {
+                                        codeNumber: 5,
+                                        materialName: "PP (Polypropylene)",
+                                    };
+                                }
+                                if (
+                                    upperCode.includes("PET") ||
+                                    upperCode.includes("PETE")
+                                ) {
+                                    return {
+                                        codeNumber: 1,
+                                        materialName:
+                                            "PET/PETE (Polyethylene Terephthalate)",
+                                    };
+                                }
+                                if (upperCode.includes("HDPE")) {
+                                    return {
+                                        codeNumber: 2,
+                                        materialName:
+                                            "HDPE (High-Density Polyethylene)",
+                                    };
+                                }
+                                if (upperCode.includes("PVC")) {
+                                    return {
+                                        codeNumber: 3,
+                                        materialName:
+                                            "PVC (Polyvinyl Chloride)",
+                                    };
+                                }
+                                if (upperCode.includes("LDPE")) {
+                                    return {
+                                        codeNumber: 4,
+                                        materialName:
+                                            "LDPE (Low-Density Polyethylene)",
+                                    };
+                                }
+                                if (
+                                    upperCode.includes("PS") ||
+                                    upperCode.includes("POLYSTYRENE")
+                                ) {
+                                    return {
+                                        codeNumber: 6,
+                                        materialName: "PS (Polystyrene)",
+                                    };
+                                }
+
+                                if (
+                                    upperCode.includes("CORRUGATED") &&
+                                    upperCode.includes("CARDBOARD")
+                                ) {
+                                    return {
+                                        codeNumber: 20,
+                                        materialName: "Corrugated Cardboard",
+                                    };
+                                }
+                                if (
+                                    upperCode.includes("NON_CORRUGATED") &&
+                                    upperCode.includes("CARDBOARD")
+                                ) {
+                                    return {
+                                        codeNumber: 21,
+                                        materialName:
+                                            "Non-Corrugated Cardboard",
+                                    };
+                                }
+                                if (
+                                    upperCode.includes("C_PAP") ||
+                                    upperCode.includes("PAP")
+                                ) {
+                                    if (upperCode.includes("82")) {
+                                        return {
+                                            codeNumber: 82,
+                                            materialName:
+                                                "Paper/Aluminum Composite",
+                                        };
+                                    }
+                                    if (upperCode.includes("81")) {
+                                        return {
+                                            codeNumber: 81,
+                                            materialName:
+                                                "Paper/Plastic Composite",
+                                        };
+                                    }
+                                    if (upperCode.includes("20")) {
+                                        return {
+                                            codeNumber: 20,
+                                            materialName:
+                                                "Corrugated Cardboard",
+                                        };
+                                    }
+                                    return {
+                                        codeNumber: 22,
+                                        materialName: "Paper",
+                                    };
+                                }
+
+                                if (
+                                    upperCode.includes("STEEL") ||
+                                    upperCode.includes("FE")
+                                ) {
+                                    return {
+                                        codeNumber: 40,
+                                        materialName: "Steel",
+                                    };
+                                }
+                                if (
+                                    upperCode.includes("ALUMINUM") ||
+                                    upperCode.includes("ALU")
+                                ) {
+                                    return {
+                                        codeNumber: 41,
+                                        materialName: "Aluminum",
+                                    };
+                                }
+
+                                const numberMatch = code.match(/(\d+)/);
+                                const codeNumber = numberMatch
+                                    ? parseInt(numberMatch[1])
+                                    : null;
+
+                                if (codeNumber) {
+                                    if (codeNumber >= 1 && codeNumber <= 7) {
+                                        return {
+                                            codeNumber,
+                                            materialName:
+                                                PLASTIC_CODES[codeNumber] ||
+                                                "Unknown Plastic",
+                                        };
+                                    }
+                                    if (codeNumber >= 20 && codeNumber <= 85) {
+                                        return {
+                                            codeNumber,
+                                            materialName:
+                                                PAPER_CODES[codeNumber] ||
+                                                "Unknown Paper Product",
+                                        };
+                                    }
+                                    if (codeNumber >= 70 && codeNumber <= 72) {
+                                        return {
+                                            codeNumber,
+                                            materialName:
+                                                GLASS_CODES[codeNumber] ||
+                                                "Clear Glass",
+                                        };
+                                    }
+                                    if (
+                                        codeNumber === 40 ||
+                                        codeNumber === 41
+                                    ) {
+                                        return {
+                                            codeNumber,
+                                            materialName:
+                                                METAL_CODES[codeNumber] ||
+                                                "Unknown Metal",
+                                        };
+                                    }
+                                }
+
+                                return {
+                                    codeNumber: null,
+                                    materialName: "Unknown Material",
+                                };
+                            };
+
+                            const { codeNumber, materialName } =
+                                parseRecyclingCode(key);
+
+                            return {
+                                key: key,
+                                codeNumber,
+                                materialName,
+                                material: material.material,
+                                score: material.environmental_score_material_score,
+                                shape: material.shape.replace("en:", ""),
+                                ratio: material.environmental_score_shape_ratio,
+                            };
+                        }),
+                    };
+
+                    console.log("[EcoLens] Product data formatted:", {
+                        name: productData.name,
+                        categories: productData.categories,
+                        environmentalScore: productData.environmentalScore,
+                    });
+
+                    const topCategories = productData.categories.slice(0, 3);
+                    console.log(
+                        "[EcoLens] Top categories for recommendations:",
+                        topCategories
+                    );
+
+                    console.log(
+                        "[EcoLens] Calling recommendations API with categories:",
+                        topCategories
+                    );
+
+                    const recommendationsResponse = await fetch(
+                        `${apiBaseUrl}/recommendations`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({ categories: topCategories }),
+                        }
+                    );
+
+                    if (!recommendationsResponse.ok) {
+                        throw new Error(
+                            `Recommendations API request failed: ${recommendationsResponse.status}`
+                        );
+                    }
+
+                    const rawRecommendationsData =
+                        await recommendationsResponse.json();
+                    console.log(
+                        "[EcoLens] Raw recommendations data received:",
+                        rawRecommendationsData
+                    );
+
+                    const recommendations = {
+                        recommendations:
+                            rawRecommendationsData.recommendations.map(
+                                (item: any) => ({
+                                    id: item.id,
+                                    name: item.product_name,
+                                    environmentalScore:
+                                        item.ecoscore_score || 0,
+                                    grade: item.ecoscore_grade
+                                        ? item.ecoscore_grade.toUpperCase()
+                                        : "N/A",
+                                })
+                            ),
+                        count: rawRecommendationsData.recommendations.length,
+                    };
+
+                    console.log(
+                        "[EcoLens] Recommendations formatted:",
+                        recommendations.count,
+                        "items"
+                    );
+
+                    console.log(
+                        "[EcoLens] Storing data in chrome.storage.local"
+                    );
                     chrome.storage.local.set({
                         detectedProduct: {
                             name: product.cleanedName,
@@ -1242,12 +1721,100 @@ class ProductScraper {
                             source: product.source,
                             timestamp: Date.now(),
                         },
+                        productData: productData,
+                        recommendations: recommendations,
+                    });
+                    console.log("[EcoLens] Data stored successfully");
+
+                    setTimeout(() => {
+                        console.log(
+                            "[EcoLens] Removing success popup and opening report tab"
+                        );
+                        successPopup.remove();
+                        chrome.runtime.sendMessage({
+                            action: "openReportTab",
+                        });
+                    }, 2000);
+                } catch (apiError: any) {
+                    console.error("[EcoLens] API Error caught:", {
+                        message: apiError.message,
+                        stack: apiError.stack,
+                        name: apiError.name,
+                        error: apiError,
                     });
 
-                    chrome.runtime.sendMessage({
-                        action: "openReportTab",
-                    });
-                }, 2000);
+                    successPopup.remove();
+                    console.log("[EcoLens] Success popup removed due to error");
+
+                    console.log(
+                        "[EcoLens] Checking if error is 404...",
+                        apiError.message
+                    );
+                    if (apiError.message && apiError.message.includes("404")) {
+                        console.log(
+                            "[EcoLens] 404 error detected, showing failure popup"
+                        );
+                        const failurePopup = document.createElement("div");
+                        failurePopup.innerHTML = `
+                            <div style="
+                                position: fixed;
+                                top: 20px;
+                                right: 20px;
+                                background: #dc2626;
+                                color: white;
+                                padding: 16px 20px;
+                                border-radius: 8px;
+                                font-size: 14px;
+                                z-index: 2147483647;
+                                font-family: system-ui, sans-serif;
+                                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                                max-width: 320px;
+                                line-height: 1.4;
+                            ">
+                                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                                    <span style="font-size: 16px;">❌</span>
+                                    <div>
+                                        <div style="font-weight: 600; margin-bottom: 4px;">
+                                            Unable to find product data
+                                        </div>
+                                        <div style="font-size: 12px; opacity: 0.9;">
+                                            Try manually searching with broader terms
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(failurePopup);
+
+                        setTimeout(() => {
+                            console.log("[EcoLens] Removing 404 failure popup");
+                            failurePopup.remove();
+                        }, 5000);
+                    } else {
+                        console.log(
+                            "[EcoLens] Non-404 error, using fallback behavior"
+                        );
+
+                        chrome.storage.local.set({
+                            detectedProduct: {
+                                name: product.cleanedName,
+                                originalName: product.name,
+                                confidence: product.confidence,
+                                source: product.source,
+                                timestamp: Date.now(),
+                            },
+                        });
+                        console.log(
+                            "[EcoLens] Fallback data stored, opening report tab"
+                        );
+
+                        setTimeout(() => {
+                            chrome.runtime.sendMessage({
+                                action: "openReportTab",
+                            });
+                        }, 1000);
+                    }
+                }
             }, 400);
         } catch (error) {
             console.error(

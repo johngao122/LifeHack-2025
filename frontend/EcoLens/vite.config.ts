@@ -37,4 +37,7 @@ export default defineConfig({
         // Keep class and function names to avoid variable conflicts
         keepNames: true,
     },
+    define: {
+        __API_BASE_URL__: JSON.stringify(process.env.VITE_API_BASE_URL),
+    },
 });

@@ -136,21 +136,113 @@ function App() {
         setLoading(true);
         setHasSearched(true);
 
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+            console.log(
+                "[EcoLens App] Starting manual search for:",
+                searchTerm
+            );
+            const { getProductInfo, getRecommendations } = await import(
+                "./utils/api"
+            );
+            const cleanedSearchTerm = cleanSearchTerm(searchTerm);
+            console.log(
+                "[EcoLens App] Cleaned search term:",
+                cleanedSearchTerm
+            );
 
-        const mockResults: ProductInfo[] = [
-            {
-                name: searchTerm,
-                cleanedName: cleanSearchTerm(searchTerm),
-                confidence: 0.9,
-                source: "Search Result",
-            },
-        ];
+            console.log(
+                "[EcoLens App] Calling getProductInfo for:",
+                cleanedSearchTerm
+            );
+            const productData = await getProductInfo(cleanedSearchTerm);
+            console.log("[EcoLens App] Product data received:", {
+                name: productData.name,
+                categories: productData.categories,
+                environmentalScore: productData.environmentalScore,
+            });
 
-        setSearchResults(mockResults);
-        setLoading(false);
+            const topCategories = productData.categories.slice(0, 3);
+            console.log(
+                "[EcoLens App] Top categories for recommendations:",
+                topCategories
+            );
 
-        chrome.runtime.sendMessage({ action: "openReportTab" });
+            const recommendations = await getRecommendations(topCategories);
+            console.log(
+                "[EcoLens App] Recommendations received:",
+                recommendations.count,
+                "items"
+            );
+
+            const searchResultData: ProductInfo[] = [
+                {
+                    name: searchTerm,
+                    cleanedName: cleanedSearchTerm,
+                    confidence: 0.9,
+                    source: "Search Result",
+                },
+            ];
+
+            setSearchResults(searchResultData);
+            console.log("[EcoLens App] Search results set in state");
+
+            console.log("[EcoLens App] Storing data in chrome.storage.local");
+            chrome.storage.local.set({
+                detectedProduct: {
+                    name: cleanedSearchTerm,
+                    originalName: searchTerm,
+                    confidence: 0.9,
+                    source: "Manual Search",
+                    timestamp: Date.now(),
+                },
+                productData: productData,
+                recommendations: recommendations,
+            });
+            console.log("[EcoLens App] Data stored successfully");
+
+            console.log("[EcoLens App] Sending message to open report tab");
+            chrome.runtime.sendMessage({ action: "openReportTab" });
+        } catch (error: any) {
+            console.error("Error fetching product data:", error);
+
+            if (error.message && error.message.includes("404")) {
+                const errorResults: ProductInfo[] = [
+                    {
+                        name: searchTerm,
+                        cleanedName: cleanSearchTerm(searchTerm),
+                        confidence: 0,
+                        source: "Product Not Found",
+                    },
+                ];
+
+                setSearchResults(errorResults);
+            } else {
+                const mockResults: ProductInfo[] = [
+                    {
+                        name: searchTerm,
+                        cleanedName: cleanSearchTerm(searchTerm),
+                        confidence: 0.9,
+                        source: "Search Result",
+                    },
+                ];
+
+                setSearchResults(mockResults);
+
+                chrome.storage.local.set({
+                    detectedProduct: {
+                        name: cleanSearchTerm(searchTerm),
+                        originalName: searchTerm,
+                        confidence: 0.9,
+                        source: "Manual Search",
+                        timestamp: Date.now(),
+                    },
+                });
+
+                chrome.runtime.sendMessage({ action: "openReportTab" });
+            }
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -451,44 +543,89 @@ function App() {
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: index * 0.1 }}
                                 >
-                                    <Card className="border-gray-200 bg-white/80 backdrop-blur-sm hover:shadow-md transition-shadow">
+                                    <Card
+                                        className={`${
+                                            product.source ===
+                                            "Product Not Found"
+                                                ? "border-red-300 bg-red-50/80"
+                                                : "border-gray-200 bg-white/80"
+                                        } backdrop-blur-sm hover:shadow-md transition-shadow`}
+                                    >
                                         <CardContent className="p-4">
-                                            <div className="space-y-3">
-                                                <div>
-                                                    <h3 className="font-semibold text-gray-800 text-sm">
-                                                        {product.cleanedName}
-                                                    </h3>
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        Original: {product.name}
-                                                    </p>
-                                                    <p className="text-xs text-emerald-600 mt-1">
-                                                        Search term:{" "}
-                                                        {cleanSearchTerm(
-                                                            product.cleanedName
-                                                        )}
-                                                    </p>
-                                                </div>
-
-                                                <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                                            {product.source ===
+                                            "Product Not Found" ? (
+                                                <div className="space-y-3">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-xs text-gray-500">
-                                                            Confidence:
+                                                        <span className="text-red-500 text-lg">
+                                                            ❌
                                                         </span>
-                                                        <span
-                                                            className={`text-xs font-semibold ${getConfidenceColor(
-                                                                product.confidence
-                                                            )}`}
-                                                        >
-                                                            {getConfidenceText(
-                                                                product.confidence
+                                                        <div>
+                                                            <h3 className="font-semibold text-red-800 text-sm">
+                                                                Unable to find
+                                                                product data
+                                                            </h3>
+                                                            <p className="text-xs text-red-600 mt-1">
+                                                                Searched for:{" "}
+                                                                {
+                                                                    product.cleanedName
+                                                                }
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="bg-red-100 border border-red-200 rounded-lg p-3">
+                                                        <p className="text-xs text-red-700 font-medium">
+                                                            💡 Try manually
+                                                            searching with
+                                                            broader terms
+                                                        </p>
+                                                        <p className="text-xs text-red-600 mt-1">
+                                                            Remove brand names,
+                                                            quantities, or be
+                                                            more generic
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <h3 className="font-semibold text-gray-800 text-sm">
+                                                            {
+                                                                product.cleanedName
+                                                            }
+                                                        </h3>
+                                                        <p className="text-xs text-gray-500 mt-1">
+                                                            Original:{" "}
+                                                            {product.name}
+                                                        </p>
+                                                        <p className="text-xs text-emerald-600 mt-1">
+                                                            Search term:{" "}
+                                                            {cleanSearchTerm(
+                                                                product.cleanedName
                                                             )}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-gray-500">
+                                                                Confidence:
+                                                            </span>
+                                                            <span
+                                                                className={`text-xs font-semibold ${getConfidenceColor(
+                                                                    product.confidence
+                                                                )}`}
+                                                            >
+                                                                {getConfidenceText(
+                                                                    product.confidence
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">
+                                                            {product.source}
                                                         </span>
                                                     </div>
-                                                    <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">
-                                                        {product.source}
-                                                    </span>
                                                 </div>
-                                            </div>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 </motion.div>
