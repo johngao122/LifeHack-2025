@@ -53,8 +53,9 @@ function App() {
         {
             target: ".tutorial-settings-button",
             content:
-                "⚙️ Access settings here to customize your EcoLens experience.",
-            placement: "left",
+                "⚙️ Access settings here to customize your EcoLens experience. I'll open it for you!",
+            placement: "bottom-end",
+            disableBeacon: true,
         },
         {
             target: ".tutorial-auto-popup-info",
@@ -88,8 +89,12 @@ function App() {
     const handleTutorialCallback = (data: CallBackProps) => {
         const { status, type, index } = data;
 
-        if (type === "step:after") {
-            if (index === 4 && !showSettings) {
+        if (type === "step:after" && index === 4) {
+            setTimeout(() => setShowSettings(true), 100);
+        }
+
+        if (type === "step:before" && index === 5) {
+            if (!showSettings) {
                 setShowSettings(true);
             }
         }
@@ -107,7 +112,7 @@ function App() {
 
     const startTutorial = () => {
         setRunTutorial(true);
-        setShowSettings(false);
+        setShowSettings(true);
     };
 
     const handleSettingsToggle = async (enabled: boolean) => {
@@ -190,6 +195,8 @@ function App() {
                         backgroundColor: "#059669",
                         color: "#ffffff",
                         borderRadius: "8px",
+                        outline: "none",
+                        boxShadow: "none",
                     },
                     buttonBack: {
                         color: "#6b7280",
@@ -248,7 +255,13 @@ function App() {
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setShowSettings(!showSettings)}
+                            onClick={() => {
+                                if (runTutorial) {
+                                    setShowSettings(true);
+                                } else {
+                                    setShowSettings(!showSettings);
+                                }
+                            }}
                             className="tutorial-settings-button !h-15 !w-15 !p-0 !text-gray-600 hover:!text-emerald-600 hover:!bg-emerald-50 !rounded-full !transition-colors !border-0 !bg-transparent hover:!border-0 !text-xl"
                             title="Settings"
                         >

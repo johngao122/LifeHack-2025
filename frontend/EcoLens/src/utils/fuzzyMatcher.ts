@@ -14,7 +14,7 @@ const categoriesFuse = new Fuse(foodTerms, {
     threshold: 0.1,
     includeScore: true,
     minMatchCharLength: 3,
-    distance: 30,
+    ignoreLocation: true,
 });
 
 const foodDescriptions = (foodData as any).FoundationFoods.map((food: any) => ({
@@ -33,7 +33,7 @@ const foodDescriptionsFuse = new Fuse(foodDescriptions, {
     threshold: 0.2,
     includeScore: true,
     minMatchCharLength: 3,
-    distance: 30,
+    ignoreLocation: true,
 });
 
 /**
