@@ -1,0 +1,28 @@
+{
+    "recommendations": [
+        {
+            "id": "3017620425035",
+            "name": "Nutella",
+            "environmental_score_data": {
+                "adjusted_score": 31,
+                "overall_grade": "d"
+            }
+        },
+        {
+            "id": "3222475060207",
+            "name": "Bonne Maman Strawberry Preserve",
+            "environmental_score_data": {
+                "adjusted_score": 24,
+                "overall_grade": "c"
+            }
+        },
+        {
+            "id": "4008400402222",
+            "name": "Lindt 70% Dark Chocolate",
+            "environmental_score_data": {
+                "adjusted_score": 12,
+                "overall_grade": "b"
+            }
+        }
+    ]
+}

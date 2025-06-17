@@ -15,13 +15,18 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 main: "./index.html",
+                report: "./report.html",
                 contentScript: "./src/contentScript.ts",
+                background: "./src/background.ts",
             },
             output: {
                 entryFileNames: (chunkInfo) => {
-                    return chunkInfo.name === "contentScript"
-                        ? "contentScript.js"
-                        : "[name]-[hash].js";
+                    if (chunkInfo.name === "contentScript") {
+                        return "contentScript.js";
+                    } else if (chunkInfo.name === "background") {
+                        return "background.js";
+                    }
+                    return "[name]-[hash].js";
                 },
                 // Less aggressive minification to avoid conflicts
                 compact: false,

@@ -1230,7 +1230,24 @@ class ProductScraper {
                         </div>
                     `;
                 document.body.appendChild(successPopup);
-                setTimeout(() => successPopup.remove(), 3000);
+
+                setTimeout(() => {
+                    successPopup.remove();
+
+                    chrome.storage.local.set({
+                        detectedProduct: {
+                            name: product.cleanedName,
+                            originalName: product.name,
+                            confidence: product.confidence,
+                            source: product.source,
+                            timestamp: Date.now(),
+                        },
+                    });
+
+                    chrome.runtime.sendMessage({
+                        action: "openReportTab",
+                    });
+                }, 2000);
             }, 400);
         } catch (error) {
             console.error(

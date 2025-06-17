@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
-import "./App.css";
+import { useState } from "react";
+import { motion } from "motion/react";
 import { cleanSearchTerm } from "./utils/productCleaner";
-import { ProductDetectedPopup } from "./components/ProductDetectedPopup";
+import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
+import { Button } from "./components/ui/button";
 
 interface ProductInfo {
     name: string;
@@ -11,134 +12,37 @@ interface ProductInfo {
 }
 
 function App() {
-    const [products, setProducts] = useState<ProductInfo[]>([]);
+    const [searchTerm, setSearchTerm] = useState("");
     const [loading, setLoading] = useState(false);
-    const [currentUrl, setCurrentUrl] = useState<string>("");
-    const [showPopup, setShowPopup] = useState(false);
+    const [searchResults, setSearchResults] = useState<ProductInfo[]>([]);
+    const [hasSearched, setHasSearched] = useState(false);
 
-    useEffect(() => {
-        getCurrentTabUrl();
+    const handleSearch = async () => {
+        if (!searchTerm.trim()) return;
 
-        const cachedProducts = sessionStorage.getItem("ecolens-products");
-        if (cachedProducts) {
-            const parsedProducts = JSON.parse(cachedProducts);
-            setProducts(parsedProducts);
-        }
-
-        const messageListener = (message: any) => {
-            if (message.action === "productsScraped") {
-                setProducts(message.products);
-                setLoading(false);
-                // Show popup only if products are detected AND popup hasn't been shown yet
-                if (
-                    message.products &&
-                    message.products.length > 0 &&
-                    !showPopup
-                ) {
-                    setShowPopup(true);
-                }
-            }
-        };
-
-        chrome.runtime.onMessage.addListener(messageListener);
-
-        return () => {
-            chrome.runtime.onMessage.removeListener(messageListener);
-        };
-    }, []);
-
-    const getCurrentTabUrl = async () => {
-        try {
-            const [tab] = await chrome.tabs.query({
-                active: true,
-                currentWindow: true,
-            });
-            if (tab.url) {
-                setCurrentUrl(tab.url);
-            }
-        } catch (error) {
-            console.error("Error getting current tab URL:", error);
-        }
-    };
-
-    const scrapeCurrentPage = async () => {
         setLoading(true);
-        try {
-            const [tab] = await chrome.tabs.query({
-                active: true,
-                currentWindow: true,
-            });
+        setHasSearched(true);
 
-            if (!tab.id) {
-                throw new Error("No active tab found");
-            }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
 
-            try {
-                await chrome.scripting.executeScript({
-                    target: { tabId: tab.id },
-                    files: ["contentScript.js"],
-                });
-            } catch (injectError) {
-                console.log(
-                    "Content script might already be injected:",
-                    injectError
-                );
-            }
+        const mockResults: ProductInfo[] = [
+            {
+                name: searchTerm,
+                cleanedName: cleanSearchTerm(searchTerm),
+                confidence: 0.9,
+                source: "Search Result",
+            },
+        ];
 
-            await new Promise((resolve) => setTimeout(resolve, 500));
+        setSearchResults(mockResults);
+        setLoading(false);
 
-            const response = await Promise.race([
-                chrome.tabs.sendMessage(tab.id, { action: "scrapeProducts" }),
-                new Promise((_, reject) =>
-                    setTimeout(
-                        () =>
-                            reject(
-                                new Error("Timeout waiting for content script")
-                            ),
-                        5000
-                    )
-                ),
-            ]);
-
-            if (response && response.products) {
-                setProducts(response.products);
-                sessionStorage.setItem(
-                    "ecolens-products",
-                    JSON.stringify(response.products)
-                );
-                // Don't show popup on manual scan
-            } else {
-                const cachedProducts =
-                    sessionStorage.getItem("ecolens-products");
-                if (cachedProducts) {
-                    setProducts(JSON.parse(cachedProducts));
-                } else {
-                    console.warn("No products found in response or cache");
-                }
-            }
-        } catch (error) {
-            console.error("Error scraping products:", error);
-
-            try {
-                const cachedProducts =
-                    sessionStorage.getItem("ecolens-products");
-                if (cachedProducts) {
-                    setProducts(JSON.parse(cachedProducts));
-                    console.log("Loaded products from cache");
-                }
-            } catch (cacheError) {
-                console.error("Error loading cached products:", cacheError);
-            }
-        } finally {
-            setLoading(false);
-        }
+        chrome.runtime.sendMessage({ action: "openReportTab" });
     };
 
-    const getDomainFromUrl = (url: string) => {
-        try {
-            return new URL(url).hostname.replace("www.", "");
-        } catch {
-            return "Unknown";
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+            handleSearch();
         }
     };
 
@@ -155,47 +59,137 @@ function App() {
     };
 
     return (
-        <div className="w-80 p-4 bg-white">
-            <ProductDetectedPopup
-                isVisible={showPopup}
-                onClose={() => setShowPopup(false)}
-                productCount={products.length}
-            />
-
-            <div className="mb-4">
-                <h1 className="text-xl font-bold text-gray-800 mb-2">
-                    EcoLens Food Tracker
-                </h1>
+        <div className="w-96 p-4 bg-white">
+            <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                    <motion.div
+                        animate={{
+                            rotate: [0, 10, -10, 0],
+                        }}
+                        transition={{
+                            duration: 1.5,
+                            repeat: Infinity,
+                            repeatDelay: 3,
+                        }}
+                        className="text-2xl"
+                    >
+                        🌱
+                    </motion.div>
+                    <h1 className="text-xl font-bold text-gray-800">
+                        EcoLens Food Tracker
+                    </h1>
+                </div>
                 <p className="text-sm text-gray-600">
-                    Scraping: {getDomainFromUrl(currentUrl)}
+                    Search for food products to analyze their environmental
+                    impact
                 </p>
             </div>
 
-            <div className="mb-4">
-                <button
-                    onClick={scrapeCurrentPage}
-                    disabled={loading}
-                    className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            <div className="mb-4 space-y-3">
+                <div className="relative">
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        placeholder="Search for food products..."
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                        disabled={loading}
+                    />
+                    {loading && (
+                        <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{
+                                duration: 1,
+                                repeat: Infinity,
+                                ease: "linear",
+                            }}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                        >
+                            <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full"></div>
+                        </motion.div>
+                    )}
+                </div>
+
+                <Button
+                    onClick={handleSearch}
+                    disabled={loading || !searchTerm.trim()}
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                 >
-                    {loading ? "Scanning..." : "Scan for Food Products"}
-                </button>
+                    {loading ? "Analyzing..." : "🔍 Analyze Sustainability"}
+                </Button>
             </div>
 
-            {products.length > 0 && (
-                <div className="space-y-3">
+            {/* Tips and Warnings */}
+            <Card className="mb-4 border-amber-200 bg-amber-50">
+                <CardHeader>
+                    <CardTitle className="text-sm text-amber-800 flex items-center gap-2">
+                        💡 Quick Tips
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <p className="text-xs text-amber-700">
+                        💡 Tip: Try not to include quantities, sizes, or brand
+                        details
+                    </p>
+                    <p className="text-xs text-amber-700">
+                        💡 Tip: Remove quantities (2kg, 500ml), sizes (large,
+                        small), and unnecessary brand details
+                    </p>
+                </CardContent>
+            </Card>
+
+            {loading && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center py-6"
+                >
+                    <motion.div
+                        animate={{
+                            scale: [1, 1.1, 1],
+                            opacity: [0.7, 1, 0.7],
+                        }}
+                        transition={{
+                            duration: 1.5,
+                            repeat: Infinity,
+                        }}
+                        className="text-3xl mb-3"
+                    >
+                        🌱
+                    </motion.div>
+                    <p className="text-green-700 font-semibold text-sm mb-1">
+                        Analyzing Environmental Impact
+                    </p>
+                    <p className="text-gray-600 text-xs">
+                        Calculating carbon footprint and sustainability
+                        metrics...
+                    </p>
+                </motion.div>
+            )}
+
+            {searchResults.length > 0 && !loading && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-3"
+                >
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-semibold text-gray-800">
-                            Food Products ({products.length})
+                            Search Results ({searchResults.length})
                         </h2>
                         <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">
-                            Auto-detected
+                            Analyzed
                         </span>
                     </div>
 
-                    <div className="max-h-96 overflow-y-auto space-y-3">
-                        {products.map((product, index) => (
-                            <div
+                    <div className="space-y-3">
+                        {searchResults.map((product, index) => (
+                            <motion.div
                                 key={index}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: index * 0.1 }}
                                 className="border rounded-lg p-3 bg-gray-50"
                             >
                                 <div className="mb-2">
@@ -221,27 +215,43 @@ function App() {
                                         confidence
                                     </span>
                                     <span className="text-gray-400">
-                                        {product.source.split("[")[0]}
+                                        {product.source}
                                     </span>
                                 </div>
-                            </div>
+                            </motion.div>
                         ))}
                     </div>
-                </div>
+                </motion.div>
             )}
 
-            {!loading && products.length === 0 && (
-                <div className="text-center py-8">
+            {hasSearched && !loading && searchResults.length === 0 && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-8"
+                >
+                    <div className="text-2xl mb-2">🤔</div>
                     <p className="text-gray-500 text-sm">
-                        No food products detected. Visit a grocery store website
-                        or food product page, or click "Scan for Food Products"
-                        to search manually.
+                        No results found. Try a different search term or be more
+                        specific.
+                    </p>
+                </motion.div>
+            )}
+
+            {!hasSearched && !loading && (
+                <div className="text-center py-8">
+                    <div className="text-3xl mb-3">👁️</div>
+                    <p className="text-gray-500 text-sm mb-2">
+                        Ready to analyze food products
+                    </p>
+                    <p className="text-gray-400 text-xs">
+                        Enter a product name above to get started
                     </p>
                 </div>
             )}
 
-            <div className="mt-4 pt-4 border-t border-gray-200">
-                <p className="text-xs text-gray-400 text-center">
+            <div className="mt-6 pt-4 border-t border-gray-200">
+                <p className="text-xs text-gray-400 text-center mt-3">
                     EcoLens v1.2 - Track your carbon footprint
                 </p>
             </div>

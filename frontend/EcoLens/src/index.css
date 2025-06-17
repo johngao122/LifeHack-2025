@@ -1,9 +1,11 @@
 @import "tw-animate-css";
+@import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
 @import "tailwindcss/preflight";
-@tailwind utilities;
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
 :root {
     font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -63,10 +65,14 @@ a:hover {
 
 body {
     margin: 0;
-    display: flex;
-    place-items: center;
     min-width: 320px;
     min-height: 100vh;
+}
+
+/* Reset body flex for report page */
+body:has(#root .min-h-screen) {
+    display: block;
+    place-items: unset;
 }
 
 h1 {
