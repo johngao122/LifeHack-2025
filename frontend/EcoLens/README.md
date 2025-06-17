@@ -46,7 +46,28 @@ EcoLens is a browser extension that analyzes the environmental impact and sustai
     npm install
     ```
 
-3. **Development Build**
+3. **Environment Variables Setup**
+
+    Create a `.env` file in the root directory (`frontend/EcoLens/.env`) and configure the required environment variables:
+
+    ```bash
+    # API Configuration
+    VITE_API_BASE_URL= api_link
+    ```
+
+    **Environment Variables:**
+
+    - `VITE_API_BASE_URL`: Base URL for the EcoLens API backend (required for product sustainability analysis)
+
+    **Example .env file:**
+
+    ```env
+    VITE_API_BASE_URL=http://localhost:8000
+    ```
+
+    > **Note**: The `.env` file is gitignored for security. Make sure to set up your own `.env` file with the appropriate API endpoint for your development or production environment.
+
+4. **Development Build**
 
     ```bash
     npm run dev
@@ -54,7 +75,7 @@ EcoLens is a browser extension that analyzes the environmental impact and sustai
 
     This starts the Vite development server, but note that for extension testing you'll need the production build.
 
-4. **Production Build**
+5. **Production Build**
     ```bash
     npm run build
     ```
