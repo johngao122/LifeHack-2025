@@ -1,14 +1,46 @@
+/**
+ * # Fuzzy Matching and Food Detection System
+ *
+ * This module implements intelligent food detection and matching using fuzzy search algorithms.
+ * It determines whether web pages contain food products and provides semantic matching
+ * capabilities for product identification.
+ *
+ * ## Data Sources:
+ * - `categories.json`: Curated food category terms for broad matching
+ * - `FoodData_Central_foundation_food_json_2025-04-24.json`: USDA food database for precise matching
+ *
+ * ## Architecture:
+ * Uses Fuse.js for fuzzy string matching with two complementary strategies:
+ * 1. **Category Matching**: Fast matching against food category terms
+ * 2. **Description Matching**: Deep matching against actual food descriptions
+ *
+ * ## Core Functions:
+ *
+ * ### isFoodPage()
+ * Determines if a webpage contains food products by:
+ * - Tokenizing page titles into meaningful terms
+ * - Filtering out non-food tokens (URLs, numbers, common words)
+ * - Matching tokens against USDA food descriptions
+ * - Using fuzzy matching for typo tolerance
+ *
+ * ### searchFoodDescriptions()
+ * Searches actual food descriptions for semantic matches.
+ * Returns scored results for ranking product relevance.
+ *
+ * ### getFoodMatches()
+ * Provides category-level food matching for broader classification.
+ *
+ * ## Performance Considerations:
+ * - Pre-loads and indexes food data on module initialization
+ * - Uses efficient tokenization to reduce search space
+ * - Configurable thresholds balance accuracy vs speed
+ */
+
 import Fuse from "fuse.js";
 import categoriesData from "../data/categories.json";
 import foodData from "../data/FoodData_Central_foundation_food_json_2025-04-24.json";
 
 const foodTerms = categoriesData.tags.map((tag) => tag.name.toLowerCase());
-console.log(
-    "[EcoLens] Loaded",
-    foodTerms.length,
-    "food terms. First 10:",
-    foodTerms.slice(0, 10)
-);
 
 const categoriesFuse = new Fuse(foodTerms, {
     threshold: 0.1,
@@ -21,12 +53,6 @@ const foodDescriptions = (foodData as any).FoundationFoods.map((food: any) => ({
     description: food.description.toLowerCase(),
     originalDescription: food.description,
 }));
-console.log(
-    "[EcoLens] Loaded",
-    foodDescriptions.length,
-    "food descriptions. First 5:",
-    foodDescriptions.slice(0, 5).map((f: any) => f.originalDescription)
-);
 
 const foodDescriptionsFuse = new Fuse(foodDescriptions, {
     keys: ["description"],
@@ -68,7 +94,6 @@ export function isFoodPage(title: string): boolean {
     }
 
     const cleaned = title.toLowerCase().trim();
-    console.log("[EcoLens] Checking if food page for title:", cleaned);
 
     const tokens = cleaned
         .split(/[\s\-|,()[\]{}]+/)
@@ -86,27 +111,14 @@ export function isFoodPage(title: string): boolean {
                 ].includes(token)
         );
 
-    console.log("[EcoLens] Tokenized title into:", tokens);
-
     for (const token of tokens) {
         const foodResults = foodDescriptionsFuse.search(token);
-        console.log(
-            `[EcoLens] Food description search results for "${token}":`,
-            foodResults
-        );
 
         if (foodResults.length > 0) {
-            console.log(
-                `[EcoLens] Food descriptions found for token "${token}":`,
-                foodResults
-                    .slice(0, 3)
-                    .map((r: any) => r.item.originalDescription)
-            );
             return true;
         }
     }
 
-    console.log("[EcoLens] No food descriptions found for any tokens");
     return false;
 }
 

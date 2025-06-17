@@ -1,3 +1,52 @@
+/**
+ * # EcoLens Main Popup Interface
+ *
+ * This component implements the primary user interface for the EcoLens browser extension.
+ * It provides manual product search capabilities, settings management, and user onboarding
+ * through an intuitive popup interface.
+ *
+ * ## Component Architecture:
+ *
+ * ### Core Features:
+ * 1. **Manual Product Search**: Direct product sustainability analysis via search input
+ * 2. **Interactive Tutorial**: Guided onboarding for new users using react-joyride
+ * 3. **Settings Management**: Auto-popup preferences and extension configuration
+ * 4. **Search Results Display**: Product confidence scoring and result validation
+ *
+ * ### State Management:
+ * - `searchTerm`: Current user input for product search
+ * - `searchResults`: Array of detected/analyzed products with confidence scores
+ * - `autoPopupEnabled`: User preference for automatic product detection
+ * - `runTutorial`: Controls tutorial activation and progression
+ * - `showSettings`: Manages settings panel visibility
+ *
+ * ### User Experience Flow:
+ * 1. **First Visit**: Automatic tutorial activation for user onboarding
+ * 2. **Manual Search**: Product input → cleaning → API call → results display
+ * 3. **Settings Configuration**: Auto-popup toggle with real-time content script updates
+ * 4. **Report Generation**: Chrome storage coordination for detailed analysis
+ *
+ * ### Tutorial System:
+ * Uses react-joyride for step-by-step guidance:
+ * - Welcome and overview
+ * - Search functionality demonstration
+ * - Settings explanation
+ * - Auto-popup feature walkthrough
+ * - Completion and preference storage
+ *
+ * ### Integration Points:
+ * - **Chrome Storage**: Persistent settings and tutorial state
+ * - **Content Scripts**: Real-time auto-popup preference updates
+ * - **Background Script**: Report tab creation coordination
+ * - **API Utilities**: Product analysis and recommendations
+ *
+ * ## Performance Optimizations:
+ * - Lazy API imports to reduce initial bundle size
+ * - Debounced search to prevent excessive API calls
+ * - Efficient state updates with proper dependency arrays
+ * - Memory management for tutorial component cleanup
+ */
+
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import Joyride, { STATUS } from "react-joyride";
@@ -137,29 +186,12 @@ function App() {
         setHasSearched(true);
 
         try {
-            console.log(
-                "[EcoLens App] Starting manual search for:",
-                searchTerm
-            );
             const { getProductInfo, getRecommendations } = await import(
                 "./utils/api"
             );
             const cleanedSearchTerm = cleanSearchTerm(searchTerm);
-            console.log(
-                "[EcoLens App] Cleaned search term:",
-                cleanedSearchTerm
-            );
 
-            console.log(
-                "[EcoLens App] Calling getProductInfo for:",
-                cleanedSearchTerm
-            );
             const productData = await getProductInfo(cleanedSearchTerm);
-            console.log("[EcoLens App] Product data received:", {
-                name: productData.name,
-                categories: productData.categories,
-                environmentalScore: productData.environmentalScore,
-            });
 
             const topCategories = productData.categories.slice(0, 3);
             console.log(

@@ -5,12 +5,14 @@ import json
 
 from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from sqlalchemy import Column
 from sqlalchemy.dialects.mysql import JSON, MEDIUMTEXT
 from pydantic import BaseModel
 
 from recommendation import aggregate_and_rank_products
+from processing import transform_single_product, select_best_product
 
 
 class ProductRequest(BaseModel):
@@ -19,26 +21,30 @@ class ProductRequest(BaseModel):
 
 class RecommendationsRequest(BaseModel):
     categories: list[str] = Query(
-        default=["plant-based-foods-and-beverages",
-                 "plant-based-foods",
-                 "cereals-and-potatoes"],
+        default=[
+            "plant-based-foods-and-beverages",
+            "plant-based-foods",
+            "cereals-and-potatoes",
+        ],
         description="List of categories to fetch products from",
     )
 
 
 class Product(SQLModel, table=True):
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
     id: str | None = Field(default=None, primary_key=True)
     cache_key: str | None = Field(default=None)
-    name: str = Field(index=True)
+    name: str = Field
     environmental_score_data: str | None = Field(
-        default=None, sa_column=Column(MEDIUMTEXT))
+        default=None, sa_column=Column(MEDIUMTEXT)
+    )
     categories: list[str] = Field(default=[], sa_column=Column(JSON))
     labels: str | None = Field(default=None)
 
 
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "mysql+pymysql://ecolens:password@localhost:3333/ecolens")
+    "DATABASE_URL", "mysql+pymysql://ecolens:password@localhost:3333/ecolens"
+)
 
 engine = create_engine(DATABASE_URL)
 
@@ -55,6 +61,14 @@ def get_session():
 SessionDep = Annotated[Session, Depends(get_session)]
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
@@ -73,71 +87,51 @@ def save_products_to_db(products: list[Product]):
 
 
 @app.post("/product_info")
-# -> list[Product]:
 def fetch_product(request: ProductRequest, background_tasks: BackgroundTasks):
     product_name_encoded = requests.utils.quote(request.product_name)
 
     with Session(engine) as session:
-        statement = select(Product).where(
-            Product.cache_key == product_name_encoded)
+        statement = select(Product).where(Product.cache_key == product_name_encoded)
         products = session.exec(statement).all()
         if products:
             print(f"Cache hit for {request.product_name}")
             for p in products:
-                p.environmental_score_data = json.loads(
-                    p.environmental_score_data)
+                p.environmental_score_data = json.loads(p.environmental_score_data)
             return products
 
     url = f"https://world.openfoodfacts.net/cgi/search.pl?search_terms={product_name_encoded}&search_simple=1&json=1"
-    response = requests.get(url, headers={
-                            "User-Agent": "EcoLens/1.0 (ecolens@example.com)"})
+    response = requests.get(
+        url, headers={"User-Agent": "EcoLens/1.0 (ecolens@example.com)"}
+    )
     if response.status_code != 200:
         raise HTTPException(status_code=404, detail="Product not found")
     data = response.json()
-    products = []
+    raw_products = data.get("products", [])
 
-    for product in data['products']:
-        if not product.get("ecoscore_data"):
-            continue
+    if not raw_products:
+        raise HTTPException(status_code=404, detail="No products found")
 
-        environmental_score_data = {
-            "adjusted_score": product["ecoscore_data"].get("score"),
-            "overall_grade": product["ecoscore_data"].get("grade"),
-            "packaging_score": product["ecoscore_data"]
-            .get("adjustments", {}).get("packaging", {}).get("score"),
-            "material_scores": {
-                material["material"]: {
-                    "packaging_id": material.get("material"),
-                    "environmental_score_material_score": material.get("environmental_score_material_score"),
-                    "environmental_score_shape_ratio": material.get("environmental_score_shape_ratio"),
-                    "shape_id": material.get("shape")
-                }
-                for material in product["ecoscore_data"]
-                .get("adjustments", {}).get("packaging", {}).get("packagings", [])
-            },
-            "agribalyse": {
-                "co2_total": product["ecoscore_data"].get("agribalyse", {}).get("co2_total"),
-                "co2_agriculture": product["ecoscore_data"].get("agribalyse", {}).get("co2_agriculture"),
-                "co2_consumption": product["ecoscore_data"].get("agribalyse", {}).get("co2_consumption"),
-                "co2_distribution": product["ecoscore_data"].get("agribalyse", {}).get("co2_distribution"),
-                "co2_packaging": product["ecoscore_data"].get("agribalyse", {}).get("co2_packaging"),
-                "co2_processing": product["ecoscore_data"].get("agribalyse", {}).get("co2_processing"),
-                "co2_transportation": product["ecoscore_data"].get("agribalyse", {}).get("co2_transportation")
-            }
-        }
+    best_product = select_best_product(raw_products)
+    if not best_product:
+        raise HTTPException(status_code=404, detail="No suitable products found")
 
-        p = Product(
-            id=product.get("_id"),
-            cache_key=product_name_encoded,
-            name=product.get("product_name", "Unknown"),
-            environmental_score_data=environmental_score_data,
-            categories=[
-                i for i in product.get("categories_hierarchy", [])
-                if i.startswith("en:")
-            ],
-            labels=product.get("labels")
-        )
-        products.append(p)
+    transformed_product = transform_single_product(best_product)
+    if not transformed_product:
+        raise HTTPException(status_code=500, detail="Failed to process product data")
+
+    p = Product(
+        id=transformed_product["id"],
+        cache_key=product_name_encoded,
+        name=transformed_product["name"],
+        environmental_score_data=transformed_product["environmental_score_data"],
+        categories=transformed_product["categories"],
+        labels=(
+            ", ".join(transformed_product["labels"])
+            if transformed_product["labels"]
+            else None
+        ),
+    )
+    products = [p]
 
     background_tasks.add_task(save_products_to_db, products)
 
@@ -153,10 +147,10 @@ def get_recommendations(
     products = aggregate_and_rank_products(categories, top_n=3)
     if not products:
         raise HTTPException(
-            status_code=404, detail="No products found for this category")
+            status_code=404, detail="No products found for this category"
+        )
     return products
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000,
-                reload=True, log_level="info")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")

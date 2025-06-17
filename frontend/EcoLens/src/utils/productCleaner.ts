@@ -1,3 +1,34 @@
+/**
+ * # Product Name Cleaning and Categorization Utilities
+ *
+ * This module provides intelligent product name cleaning and categorization for improved
+ * sustainability analysis accuracy. It removes marketing terms, quantities, and brand
+ * modifiers while preserving essential product information.
+ *
+ * ## Core Functions:
+ *
+ * ### extractBrandFromName()
+ * Extracts brand names from product titles using capitalization patterns and word analysis.
+ * Uses fallback strategies for robust brand detection across different naming conventions.
+ *
+ * ### categorizeProduct()
+ * Categorizes products into major categories (Electronics, Clothing, Food, etc.) using
+ * keyword matching. Essential for determining appropriate sustainability metrics.
+ *
+ * ### cleanSearchTerm()
+ * The primary cleaning function that:
+ * - Removes retailer names and generic marketing terms
+ * - Strips quantities, sizes, and measurements
+ * - Filters out promotional language
+ * - Normalizes product names for API consumption
+ *
+ * ## Design Principles:
+ * - Conservative cleaning: preserve product essence while removing noise
+ * - Multiple cleaning passes: brand → generic terms → quantities → normalization
+ * - Fallback handling: graceful degradation when cleaning fails
+ * - Case sensitivity: proper capitalization for brand recognition
+ */
+
 export function extractBrandFromName(productName: string): string {
     try {
         const words = productName.split(" ");
@@ -122,8 +153,6 @@ export function categorizeProduct(productName: string): string {
 export function cleanSearchTerm(searchTerm: string): string {
     if (!searchTerm) return "";
 
-    console.log(`[EcoLens] Cleaning search term: "${searchTerm}"`);
-
     let cleaned = searchTerm.toLowerCase().trim();
 
     const brandPrefixes = [
@@ -241,6 +270,5 @@ export function cleanSearchTerm(searchTerm: string): string {
 
     cleaned = cleaned.replace(/\s+/g, " ");
 
-    console.log(`[EcoLens] Cleaned search term result: "${cleaned}"`);
     return cleaned;
 }

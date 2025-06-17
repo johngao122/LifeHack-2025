@@ -1,3 +1,23 @@
+/**
+ * # EcoLens API Utilities
+ *
+ * This module handles all API interactions with the EcoLens backend for product sustainability analysis.
+ * It provides formatted data structures, recycling code parsing, and API communication functions.
+ *
+ * ## Key Features:
+ * - Recycling code parsing for plastic, paper, glass, and metal materials
+ * - Product sustainability data fetching and formatting
+ * - Environmental score calculation and breakdown
+ * - Recommendations API integration
+ *
+ * ## Architecture:
+ * The module uses a layered approach:
+ * 1. Raw data interfaces (ProductData, MaterialScore)
+ * 2. Formatted interfaces (FormattedProductData, FormattedRecommendation)
+ * 3. Utility functions (parseRecyclingCode, calculateCarbonBreakdown)
+ * 4. API functions (getProductInfo, getRecommendations)
+ */
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const PLASTIC_CODES: Record<number, string> = {
@@ -79,6 +99,10 @@ const parseRecyclingCode = (
     }
     if (upperCode.includes("PS") || upperCode.includes("POLYSTYRENE")) {
         return { codeNumber: 6, materialName: "PS (Polystyrene)" };
+    }
+
+    if (upperCode === "PLASTIC") {
+        return { codeNumber: 7, materialName: "Plastic (Mixed)" };
     }
 
     if (upperCode.includes("CORRUGATED") && upperCode.includes("CARDBOARD")) {
@@ -264,7 +288,7 @@ const calculateCarbonBreakdown = (
 export const getProductInfo = async (
     productName: string
 ): Promise<FormattedProductData> => {
-    const response = await fetch(`${API_BASE_URL}/product`, {
+    const response = await fetch(`${API_BASE_URL}/product_info`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -276,7 +300,13 @@ export const getProductInfo = async (
         throw new Error(`API request failed: ${response.status}`);
     }
 
-    const rawData = (await response.json()) as ProductData;
+    const rawDataArray = (await response.json()) as ProductData[];
+
+    if (!rawDataArray || rawDataArray.length === 0) {
+        throw new Error("No product data received");
+    }
+
+    const rawData = rawDataArray[0];
 
     const formattedData: FormattedProductData = {
         id: rawData.id,
@@ -307,7 +337,7 @@ export const getProductInfo = async (
                 materialName,
                 material: material.material,
                 score: material.environmental_score_material_score,
-                shape: material.shape.replace("en:", ""),
+                shape: material.shape ? material.shape.replace("en:", "") : "",
                 ratio: material.environmental_score_shape_ratio,
             };
         }),
@@ -359,17 +389,18 @@ export const getRecommendations = async (
         throw new Error(`API request failed: ${response.status}`);
     }
 
-    const rawData = (await response.json()) as RecommendationsData;
+    const rawData = (await response.json()) as RecommendationItem[];
 
-    const formattedRecommendations: FormattedRecommendation[] =
-        rawData.recommendations.map((item) => ({
+    const formattedRecommendations: FormattedRecommendation[] = rawData.map(
+        (item) => ({
             id: item.id,
             name: item.product_name,
             environmentalScore: item.ecoscore_score || 0,
             grade: item.ecoscore_grade
                 ? item.ecoscore_grade.toUpperCase()
                 : "N/A",
-        }));
+        })
+    );
 
     return {
         recommendations: formattedRecommendations,

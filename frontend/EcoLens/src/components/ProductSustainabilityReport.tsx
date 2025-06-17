@@ -1,3 +1,66 @@
+/**
+ * # Product Sustainability Report Component
+ *
+ * This component renders comprehensive environmental impact analysis for detected food products.
+ * It displays detailed sustainability metrics, carbon footprint breakdowns, packaging analysis,
+ * and eco-friendly recommendations in an interactive dashboard format.
+ *
+ * ## Component Architecture:
+ *
+ * ### Data Sources:
+ * - **Chrome Storage**: Retrieved product data and recommendations from extension
+ * - **API Integration**: Fallback data fetching if storage is incomplete
+ * - **Real-time Processing**: Dynamic calculations for carbon footprint analysis
+ *
+ * ### Visual Sections:
+ * 1. **Product Overview**: Name, grade, and basic sustainability metrics
+ * 2. **Environmental Score**: Color-coded rating with detailed breakdown
+ * 3. **Carbon Footprint**: Interactive chart showing lifecycle impact stages
+ * 4. **Packaging Analysis**: Material breakdown with recycling information
+ * 5. **Eco Recommendations**: Alternative products with better sustainability scores
+ *
+ * ### Data Visualization:
+ * - **Progress Bars**: Environmental and packaging scores with color gradients
+ * - **Pie Charts**: Carbon footprint distribution across lifecycle stages
+ * - **Grade Badges**: A-E sustainability rating system
+ * - **Interactive Accordions**: Expandable sections for detailed analysis
+ *
+ * ### Responsive Design:
+ * - Mobile-first approach with Tailwind CSS
+ * - Smooth animations with Framer Motion
+ * - Accessible color schemes for sustainability grades
+ * - Loading states and error handling
+ *
+ * ## Data Processing:
+ *
+ * ### Carbon Footprint Calculation:
+ * Processes raw API data into percentage-based breakdowns:
+ * - Agriculture: Raw material production impact
+ * - Processing: Manufacturing and transformation
+ * - Transportation: Distribution logistics
+ * - Packaging: Material production and disposal
+ * - Consumption: End-user impact
+ * - Distribution: Retail and storage
+ *
+ * ### Packaging Material Analysis:
+ * - Recycling code parsing and material identification
+ * - Environmental impact scoring per material type
+ * - Shape and ratio analysis for disposal optimization
+ *
+ * ### Grade Color Mapping:
+ * - A: Green (excellent sustainability)
+ * - B: Blue (good sustainability)
+ * - C: Yellow (moderate sustainability)
+ * - D: Orange (poor sustainability)
+ * - E: Red (very poor sustainability)
+ *
+ * ## Performance Features:
+ * - Lazy loading for non-critical data
+ * - Memoized calculations to prevent re-computation
+ * - Optimized re-renders with proper dependency management
+ * - Graceful fallbacks for missing data
+ */
+
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -42,12 +105,7 @@ const ProductSustainabilityReport = () => {
 
                     if (result.detectedProduct) {
                         setDetectedProduct(result.detectedProduct);
-                    }
 
-                    if (result.productData && result.recommendations) {
-                        setProductData(result.productData);
-                        setRecommendations(result.recommendations);
-                    } else if (result.detectedProduct) {
                         const productData = await getProductInfo(
                             result.detectedProduct.name
                         );
@@ -236,40 +294,6 @@ const ProductSustainabilityReport = () => {
                                         Based on Packaging sustainability and
                                         best practices
                                     </p>
-                                </div>
-
-                                {/* Score breakdown */}
-                                <div className="grid grid-cols-2 gap-4 pt-4">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-600 flex items-center space-x-1">
-                                            <LeafIcon className="w-4 h-4" />
-                                            <span>Carbon Footprint</span>
-                                        </span>
-                                        <Badge variant="secondary">Low</Badge>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-600">
-                                            Water Usage
-                                        </span>
-                                        <Badge variant="outline">
-                                            Moderate
-                                        </Badge>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-600">
-                                            Ethical Sourcing
-                                        </span>
-                                        <Badge variant="default">High</Badge>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-600 flex items-center space-x-1">
-                                            <RecycleIcon className="w-4 h-4" />
-                                            <span>Packaging</span>
-                                        </span>
-                                        <Badge variant="secondary">
-                                            Recyclable
-                                        </Badge>
-                                    </div>
                                 </div>
                             </div>
                         </CardContent>

@@ -1,3 +1,66 @@
+/**
+ * # EcoLens Content Script - Intelligent Product Detection System
+ *
+ * This content script implements sophisticated product detection and user interaction
+ * for food sustainability analysis across e-commerce and food retailer websites.
+ *
+ * ## Architecture Overview:
+ *
+ * ### Core Components:
+ * 1. **ProductScraper Class**: Multi-strategy product extraction engine
+ * 2. **Product Detection Logic**: Page scanning and validation algorithms
+ * 3. **User Interface System**: Dynamic popup and notification management
+ * 4. **Communication Layer**: Message passing with background script and popup
+ *
+ * ### Product Detection Strategies:
+ * The system uses a hierarchical approach with fallback mechanisms:
+ *
+ * #### 1. JSON-LD Structured Data Extraction
+ * - Parses schema.org Product markup
+ * - Handles nested objects and arrays
+ * - Highest confidence source (0.9-0.95)
+ *
+ * #### 2. Meta Tag Analysis
+ * - Extracts OpenGraph and Twitter card data
+ * - Fallback for structured data (0.7-0.8 confidence)
+ *
+ * #### 3. DOM Selector Matching
+ * - Uses curated selectors for product names/titles
+ * - Applies visual hierarchy scoring
+ * - Multiple validation layers (0.4-0.7 confidence)
+ *
+ * ### Product Name Cleaning Pipeline:
+ * 1. **Brand/Retailer Removal**: Strips store names and common prefixes
+ * 2. **Marketing Term Filtering**: Removes promotional language
+ * 3. **Quantity Normalization**: Handles sizes, weights, and pack quantities
+ * 4. **Capitalization Fixing**: Proper case for brand recognition
+ * 5. **Blacklist Filtering**: Removes non-product terms
+ *
+ * ### User Interface States:
+ * - **Detection Notification**: Subtle page-level product detection alerts
+ * - **Product Validation Popup**: Interactive product confirmation interface
+ * - **Edit Form**: Manual product name correction interface
+ * - **Auto-close Management**: Prevents UI interference during user interaction
+ *
+ * ## Performance Considerations:
+ * - Debounced scanning to prevent excessive processing
+ * - Lazy loading of heavy analysis functions
+ * - Efficient DOM querying with early termination
+ * - Smart retry logic for dynamic content
+ *
+ * ## Integration Points:
+ * - Background script for tab management
+ * - Chrome storage for user preferences and data persistence
+ * - Fuzzy matcher for food page detection
+ * - API utilities for sustainability analysis
+ *
+ * ## Error Handling:
+ * - Graceful degradation when detection fails
+ * - Fallback strategies for different site structures
+ * - User feedback for manual correction
+ * - Comprehensive logging for debugging
+ */
+
 "use strict";
 
 import { isFoodPage } from "./utils/fuzzyMatcher.js";
@@ -11,8 +74,6 @@ interface ProductInfo {
 
 function cleanProductName(rawName: string): string {
     if (!rawName) return "";
-
-    console.log(`[EcoLens] Cleaning product name: "${rawName}"`);
 
     let cleaned = rawName;
 
@@ -183,7 +244,6 @@ function cleanProductName(rawName: string): string {
         })
         .join(" ");
 
-    console.log(`[EcoLens] Cleaned result: "${result}"`);
     return result;
 }
 
@@ -252,10 +312,6 @@ class ProductScraper {
         try {
             const jsonLdProducts = this.extractFromJsonLd();
             if (jsonLdProducts.length > 0) {
-                console.log(
-                    "[EcoLens] Found JSON-LD products:",
-                    jsonLdProducts
-                );
                 return jsonLdProducts;
             }
         } catch (error) {
@@ -1267,7 +1323,7 @@ class ProductScraper {
                     );
 
                     const productResponse = await fetch(
-                        `${apiBaseUrl}/product`,
+                        `${apiBaseUrl}/product_info`,
                         {
                             method: "POST",
                             headers: {
@@ -1721,8 +1777,6 @@ class ProductScraper {
                             source: product.source,
                             timestamp: Date.now(),
                         },
-                        productData: productData,
-                        recommendations: recommendations,
                     });
                     console.log("[EcoLens] Data stored successfully");
 
