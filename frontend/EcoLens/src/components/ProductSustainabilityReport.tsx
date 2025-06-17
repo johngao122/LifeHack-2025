@@ -3,7 +3,6 @@ import { motion } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Progress } from "./ui/progress";
 import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
 import {
     Accordion,
     AccordionContent,
@@ -575,11 +574,7 @@ const ProductSustainabilityReport = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.9 }}
                     className="flex justify-center"
-                >
-                    <Button className="bg-green-600 hover:bg-green-700 text-white px-8 py-2">
-                        View More Details
-                    </Button>
-                </motion.div>
+                ></motion.div>
             </div>
         </div>
     );

@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
+import Joyride, { STATUS } from "react-joyride";
+import type { CallBackProps, Step } from "react-joyride";
 import { cleanSearchTerm } from "./utils/productCleaner";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Button } from "./components/ui/button";
@@ -20,13 +22,93 @@ function App() {
     const [showSettings, setShowSettings] = useState(false);
     const [autoPopupEnabled, setAutoPopupEnabled] = useState(true);
 
+    const [runTutorial, setRunTutorial] = useState(false);
+
+    const tutorialSteps: Step[] = [
+        {
+            target: ".tutorial-welcome",
+            content:
+                "👋 Welcome to EcoLens! Let me show you how to track the environmental impact of food products.",
+            placement: "center",
+            disableBeacon: true,
+        },
+        {
+            target: ".tutorial-search-input",
+            content:
+                "🔍 Start by typing any food product name here. Try to be specific but avoid quantities, sizes, or brand details.",
+            placement: "bottom",
+        },
+        {
+            target: ".tutorial-search-button",
+            content:
+                "📊 Click this button to analyze the sustainability metrics of your food product.",
+            placement: "top",
+        },
+        {
+            target: ".tutorial-tips",
+            content:
+                "💡 These tips help you get the best results from your searches.",
+            placement: "top",
+        },
+        {
+            target: ".tutorial-settings-button",
+            content:
+                "⚙️ Access settings here to customize your EcoLens experience.",
+            placement: "left",
+        },
+        {
+            target: ".tutorial-auto-popup-info",
+            content:
+                "🔔 When auto-popup is enabled, EcoLens will automatically detect food products while you browse shopping websites. When a valid product is found, a popup will appear asking if you want to generate a sustainability report for that product.",
+            placement: "bottom",
+        },
+        {
+            target: ".tutorial-welcome",
+            content:
+                "🎉 You're all set! Start tracking your food's environmental impact. The extension will also work automatically on shopping sites.",
+            placement: "center",
+        },
+    ];
+
     useEffect(() => {
-        chrome.storage.sync.get(["autoPopupEnabled"], (result) => {
-            if (result.autoPopupEnabled !== undefined) {
-                setAutoPopupEnabled(result.autoPopupEnabled);
+        chrome.storage.sync.get(
+            ["autoPopupEnabled", "hasSeenTutorial"],
+            (result) => {
+                if (result.autoPopupEnabled !== undefined) {
+                    setAutoPopupEnabled(result.autoPopupEnabled);
+                }
+
+                if (!result.hasSeenTutorial) {
+                    setRunTutorial(true);
+                }
             }
-        });
+        );
     }, []);
+
+    const handleTutorialCallback = (data: CallBackProps) => {
+        const { status, type, index } = data;
+
+        if (type === "step:after") {
+            if (index === 4 && !showSettings) {
+                setShowSettings(true);
+            }
+        }
+
+        if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+            setRunTutorial(false);
+
+            if (typeof chrome !== "undefined" && chrome.storage) {
+                chrome.storage.sync.set({ hasSeenTutorial: true });
+            }
+
+            setShowSettings(false);
+        }
+    };
+
+    const startTutorial = () => {
+        setRunTutorial(true);
+        setShowSettings(false);
+    };
 
     const handleSettingsToggle = async (enabled: boolean) => {
         setAutoPopupEnabled(enabled);
@@ -85,7 +167,46 @@ function App() {
     };
 
     return (
-        <div className="w-96 p-4 bg-white overflow-hidden">
+        <div className="w-96 p-4 bg-white overflow-hidden tutorial-welcome">
+            <Joyride
+                steps={tutorialSteps}
+                run={runTutorial}
+                callback={handleTutorialCallback}
+                continuous={true}
+                showProgress={true}
+                showSkipButton={true}
+                scrollToFirstStep={true}
+                styles={{
+                    options: {
+                        primaryColor: "#059669",
+                        backgroundColor: "#ffffff",
+                        textColor: "#374151",
+                        zIndex: 10000,
+                    },
+                    tooltip: {
+                        borderRadius: "8px",
+                    },
+                    buttonNext: {
+                        backgroundColor: "#059669",
+                        color: "#ffffff",
+                        borderRadius: "6px",
+                    },
+                    buttonBack: {
+                        color: "#6b7280",
+                    },
+                    buttonSkip: {
+                        color: "#9ca3af",
+                    },
+                }}
+                locale={{
+                    back: "← Back",
+                    close: "Close",
+                    last: "Finish",
+                    next: "Next →",
+                    skip: "Skip tour",
+                }}
+            />
+
             <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -106,22 +227,41 @@ function App() {
                             EcoLens Food Tracker
                         </h1>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowSettings(!showSettings)}
-                        className="!text-gray-600 hover:!text-gray-800 !p-1 !m-0 !bg-transparent hover:!bg-gray-100 !border-0 !shadow-none !outline-none focus:!outline-none focus:!ring-0 !min-w-0 !h-auto"
-                        style={{
-                            fontSize: "18px",
-                            lineHeight: "1",
-                            padding: "4px",
-                            margin: "0",
-                            border: "none",
-                            background: "transparent",
-                        }}
-                    >
-                        ⚙️
-                    </Button>
+                    <div className="flex items-center gap-1">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={startTutorial}
+                            className="!text-gray-600 hover:!text-gray-800 !p-1 !m-0 !bg-transparent hover:!bg-gray-100 !border-0 !shadow-none !outline-none focus:!outline-none focus:!ring-0 !min-w-0 !h-auto"
+                            style={{
+                                fontSize: "16px",
+                                lineHeight: "1",
+                                padding: "4px",
+                                margin: "0",
+                                border: "none",
+                                background: "transparent",
+                            }}
+                            title="Start Tutorial"
+                        >
+                            🎓
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowSettings(!showSettings)}
+                            className="tutorial-settings-button !text-gray-600 hover:!text-gray-800 !p-1 !m-0 !bg-transparent hover:!bg-gray-100 !border-0 !shadow-none !outline-none focus:!outline-none focus:!ring-0 !min-w-0 !h-auto"
+                            style={{
+                                fontSize: "18px",
+                                lineHeight: "1",
+                                padding: "4px",
+                                margin: "0",
+                                border: "none",
+                                background: "transparent",
+                            }}
+                        >
+                            ⚙️
+                        </Button>
+                    </div>
                 </div>
                 <p className="text-sm text-gray-600">
                     Search for food products to analyze their environmental
@@ -162,7 +302,7 @@ function App() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between tutorial-auto-popup-info">
                                 <div>
                                     <p className="text-sm text-blue-800 font-medium">
                                         Automatic Pop-ups
@@ -197,7 +337,7 @@ function App() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                         onKeyPress={handleKeyPress}
                         placeholder="Search for food products..."
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                        className="tutorial-search-input w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                         disabled={loading}
                     />
                     {loading && (
@@ -218,14 +358,14 @@ function App() {
                 <Button
                     onClick={handleSearch}
                     disabled={loading || !searchTerm.trim()}
-                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    className="tutorial-search-button w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                 >
                     {loading ? "Analyzing..." : "🔍 Analyze Sustainability"}
                 </Button>
             </div>
 
             {/* Tips and Warnings */}
-            <Card className="mb-4 border-amber-200 bg-amber-50">
+            <Card className="tutorial-tips mb-4 border-amber-200 bg-amber-50">
                 <CardHeader>
                     <CardTitle className="text-sm text-amber-800 flex items-center gap-2">
                         💡 Quick Tips
