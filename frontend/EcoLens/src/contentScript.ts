@@ -1226,7 +1226,7 @@ class ProductScraper {
                             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                             animation: ecolens-slide-in 0.3s ease;
                         ">
-                            🌱 Analyzing "${product.cleanedName}" green score...
+                            🌱 Analyzing "${product.cleanedName}" Green Score...
                         </div>
                     `;
                 document.body.appendChild(successPopup);
