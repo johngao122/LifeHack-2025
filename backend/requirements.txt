@@ -4,3 +4,6 @@ sqlalchemy
 pydantic
 python-multipart
 python-dotenv
+sqlmodel
+requests
+pymysql

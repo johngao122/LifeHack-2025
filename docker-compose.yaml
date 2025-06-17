@@ -2,18 +2,17 @@ version: '3.8'
 
 services:
   # FastAPI application
-  # api:
-  #   build: .
-  #   container_name: fastapi_app
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     - db
-  #   environment:
-  #     - DATABASE_URL=mysql+pymysql://ecolens:password@db:3306/ecolens
-  #   volumes:
-  #     - .:/app
-  #   command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+  api:
+    build: ./backend
+    container_name: fastapi_app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+pymysql://ecolens:password@db:3306/ecolens
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      db:
+        condition: service_healthy
 
   # MySQL Database
   db:
@@ -31,6 +30,12 @@ services:
       - mysql_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     command: --default-authentication-plugin=mysql_native_password
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "--password=password", "--user=ecolens", "status"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
 
 volumes:
   mysql_data:
