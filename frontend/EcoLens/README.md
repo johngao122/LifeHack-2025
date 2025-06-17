@@ -1,54 +1,141 @@
-# React + TypeScript + Vite
+# EcoLens - Food Sustainability Browser Extension
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+EcoLens is a browser extension that analyzes the environmental impact and sustainability of food products. The extension operates in two modes: manual search through the popup interface and automatic detection while browsing online grocery stores and food retailers.
 
-Currently, two official plugins are available:
+## What EcoLens Does
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Product Detection and Analysis
 
-## Expanding the ESLint configuration
+-   **Automatic Detection**: When browsing food shopping websites, EcoLens scans page content to identify food products using multiple extraction methods including JSON-LD structured data, meta tags, and DOM element analysis
+-   **Manual Search**: Search for any food product through the extension popup to generate sustainability reports
+-   **Smart Product Cleaning**: Automatically removes marketing terms, quantities, brand modifiers, and other noise from product names to improve analysis accuracy
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Sustainability Reporting
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+-   Generates environmental impact reports for detected or searched food products
+-   Opens detailed reports in new tabs for comprehensive sustainability analysis
+-   Provides confidence scoring for product detection accuracy
+
+### User Experience Features
+
+-   **Interactive Tutorial**: First-time user onboarding with guided tour of features
+-   **Auto-popup Control**: Toggle automatic product detection notifications
+-   **Fuzzy Matching**: Intelligent food page detection to activate only on relevant websites
+-   **Real-time Processing**: Live product detection as you browse with minimal performance impact
+
+## Setup Instructions
+
+### Prerequisites
+
+-   Node.js 18 or higher
+-   npm or yarn package manager
+-   Chrome or Chromium-based browser for testing
+
+### Development Setup
+
+1. **Clone and Navigate**
+
+    ```bash
+    git clone <repository-url>
+    cd frontend/EcoLens
+    ```
+
+2. **Install Dependencies**
+
+    ```bash
+    npm install
+    ```
+
+3. **Development Build**
+
+    ```bash
+    npm run dev
+    ```
+
+    This starts the Vite development server, but note that for extension testing you'll need the production build.
+
+4. **Production Build**
+    ```bash
+    npm run build
+    ```
+    This creates the `dist/` directory with the compiled extension files.
+
+### Browser Extension Installation
+
+1. **Build the Extension**
+
+    ```bash
+    npm run build
+    ```
+
+2. **Load in Chrome**
+
+    - Open Chrome and navigate to `chrome://extensions/`
+    - Enable "Developer mode" (toggle in top right)
+    - Click "Load unpacked"
+    - Select the `dist/` folder from your project directory
+
+3. **Test the Extension**
+    - Click the EcoLens icon in your browser toolbar to open the popup
+    - Visit food shopping websites to test automatic detection
+    - Try manual searches through the popup interface
+
+### Project Structure
+
+```
+src/
+├── App.tsx                 # Main popup interface component
+├── contentScript.ts        # Injected script for product detection
+├── background.ts           # Service worker for extension coordination
+├── components/             # Reusable UI components
+├── utils/                  # Utility functions and helpers
+├── types/                  # TypeScript type definitions
+└── data/                   # Static data and configurations
+
+public/
+├── manifest.json           # Extension manifest configuration
+└── vite.svg               # Extension icon
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Development Commands
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+# Start development server (for UI development)
+npm run dev
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
+# Build for production/extension testing
+npm run build
+
+# Run linting
+npm run lint
+
+# Preview production build
+npm run preview
 ```
+
+### Configuration Files
+
+-   `manifest.json`: Defines extension permissions, content scripts, and metadata
+-   `vite.config.ts`: Build configuration with Chrome extension optimizations
+-   `tailwind.config.js`: UI styling configuration
+-   `tsconfig.json`: TypeScript compiler settings
+
+### Key Technologies
+
+-   **React 19** with TypeScript for popup interface
+-   **Tailwind CSS** for styling with Radix UI components
+-   **Vite** for fast development and optimized builds
+-   **Chrome Extensions Manifest V3** for modern extension architecture
+-   **Content Scripts** for webpage integration and product detection
+-   **Natural Language Processing** libraries for product name cleaning
+
+### Browser Compatibility
+
+EcoLens is built for Chromium-based browsers using Manifest V3:
+
+-   Chrome 88+
+-   Edge 88+
+-   Brave
+-   Other Chromium-based browsers
+
+For Firefox compatibility, additional manifest configuration would be required.
