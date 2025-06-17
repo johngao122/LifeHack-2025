@@ -1,15 +1,15 @@
 # Introduction
 
-EcoLens is a browser extension that analyzes the environmental impact and sustainability of food products and make suggestions for alternate products. 
+EcoLens is a browser extension that analyzes the environmental impact and sustainability of food products and make suggestions for alternate products.
 
 It operates in two modes:
+
 1. Automatic detection - Scans food shopping websites as you browse to identify products using structured data (JSON-LD), meta tags, and DOM analysis
 2. Manual search - Search any food product through the popup to generate sustainability reports
 
-
 ### Tech Stack
 
-EcoLens is built on React 19 + Typescript, Vite, Chrome Extensions Manifest V3 for the frontend, and {} for the backend
+EcoLens is built on React 19 + Typescript, Vite, Chrome Extensions Manifest V3 for the frontend, and FastAPI + SQLModel + MySQL for the backend
 
 It uses the OpenFoodFacts API and database for the relevant sustainability data. Central foundation food data from the U.S. Department of Agriculture's (USDA) FoodData Central system is also used to recognize and index food items for algorithimic use.
 
@@ -18,7 +18,27 @@ The latest version of the extension can be found in the releases
 [![Latest Release](https://img.shields.io/github/v/release/johngao122/LifeHack-2025)](https://github.com/johngao122/LifeHack-2025/releases/latest)
 
 ---
+
 # Instructions for running the project locally
+
+## Prerequisites
+
+Before setting up EcoLens, make sure you have the following installed:
+
+-   **Node.js 18+** - [Download from nodejs.org](https://nodejs.org/)
+-   **Docker Desktop** - [Download from docker.com](https://www.docker.com/products/docker-desktop/)
+-   **Chrome/Chromium Browser** - For extension testing
+-   **Git** - For cloning the repository
+
+### System Requirements
+
+-   **macOS**: macOS 10.15 or later
+-   **Windows**: Windows 10 or later with WSL2 for Docker
+-   **Linux**: Any modern distribution with Docker support
+
+---
+
+## Frontend Setup
 
 ### Frontend
 
@@ -31,66 +51,175 @@ There are 2 ways to run the frontend.
 1. **Download the CRX file** from releases
 
 2. **Install in Chrome**
-   - Open Chrome and go to `chrome://extensions/`
-  
+    - Open Chrome and go to `chrome://extensions/`
+
 ![image](https://github.com/user-attachments/assets/47bd6459-0186-4d7c-9263-3747b53a833f)
 
-   - Enable "Developer mode" (toggle in top right)
-  
+-   Enable "Developer mode" (toggle in top right)
+
 ![Screenshot 2025-06-18 at 2 47 42 AM](https://github.com/user-attachments/assets/6198e2f6-0b06-4859-aa1c-2aea95b6f64b)
 
-   - Drag and drop the `dist.crx` file into the extensions page
-   - Click "Add extension" when prompted
+-   Drag and drop the `dist.crx` file into the extensions page
+-   Click "Add extension" when prompted
 
 ![image](https://github.com/user-attachments/assets/749b47b6-54bf-4ae6-8956-2a030a027586)
 
-
 4. **Start using**
-   - Extension icon should appear in toolbar immediately
+    - Extension icon should appear in toolbar immediately
 
 ![image](https://github.com/user-attachments/assets/7cbeec41-d105-40b0-8dc5-ccc9a9b4073d)
 
-   - If it does not appear, you might need to pin the extension in the extensions tab
-
+-   If it does not appear, you might need to pin the extension in the extensions tab
 
 ### Method 2: Build from Source (Development)
 
 **Build and load the unpacked extension:**
 
 1. **Setup environment**
-   ```bash
-   cd frontend/EcoLens
-   npm install
-   ```
+
+    ```bash
+    cd frontend/EcoLens
+    npm install
+    ```
 
 2. **Configure API endpoint**
-   ```bash
-   # Create .env file
-   echo "VITE_API_BASE_URL=(insert your backend api link here)" > .env
-   ```
+
+    ```bash
+    # Create .env file
+    echo "VITE_API_BASE_URL=http://localhost:8000" > .env
+    ```
 
 3. **Build the extension**
-   ```bash
-   npm run build
-   ```
+
+    ```bash
+    npm run build
+    ```
 
 4. **Load in Chrome**
-   - Open `chrome://extensions/`
-   - Enable "Developer mode"
-   - Click "Load unpacked"
-   - Select the `dist/` folder
+
+    - Open `chrome://extensions/`
+    - Enable "Developer mode"
+    - Click "Load unpacked"
+    - Select the `dist/` folder
 
 5. **Development workflow**
-   ```bash
-   # Make changes, then rebuild
-   npm run build
-   # Click refresh icon in chrome://extensions/ for your extension
-   ```
+    ```bash
+    # Make changes, then rebuild
+    npm run build
+    # Click refresh icon in chrome://extensions/ for your extension
+    ```
 
 ---
 
-Backend
+## Backend Setup
 
+### Method 1: Docker Compose (Recommended)
+
+**Quick setup using Docker Compose - runs both API and database:**
+
+1. **Clone and navigate to project**
+
+    ```bash
+    git clone <repository-url>
+    cd Lifehack2025
+    ```
+
+2. **Start all backend services**
+
+    ```bash
+    docker-compose up -d
+    ```
+
+    This will:
+
+    - Build and start the FastAPI backend on port 8000
+    - Start MySQL database on port 3333
+    - Create database and user automatically
+    - Set up proper networking between services
+
+3. **Verify services are running**
+
+    ```bash
+    # Check service status
+    docker-compose ps
+
+    # View logs
+    docker-compose logs -f
+    ```
+
+4. **Test the API**
+
+    - API: `http://localhost:8000`
+    - API Documentation: `http://localhost:8000/docs`
+
+5. **Stop services when done**
+    ```bash
+    docker-compose down
+    ```
+
+### Method 2: Local Development Setup
+
+**Manual setup for development:**
+
+1. **Setup Python environment**
+
+    ```bash
+    cd backend
+    python -m venv ecolens-env
+    source ecolens-env/bin/activate  # On Windows: ecolens-env\Scripts\activate
+    pip install -r requirements.txt
+    ```
+
+2. **Setup MySQL database**
+
+    ```sql
+    CREATE DATABASE ecolens;
+    CREATE USER 'ecolens'@'localhost' IDENTIFIED BY 'password';
+    GRANT ALL PRIVILEGES ON ecolens.* TO 'ecolens'@'localhost';
+    ```
+
+3. **Configure environment**
+
+    ```bash
+    # Create .env file in backend directory
+    echo "DATABASE_URL=mysql+pymysql://ecolens:password@localhost:3306/ecolens" > .env
+    ```
+
+4. **Run the API server**
+    ```bash
+    python main.py
+    ```
+
+## Full Stack Setup
+
+**To run both frontend and backend together:**
+
+1. **Start backend services**
+
+    ```bash
+    docker-compose up -d
+    ```
+
+2. **Setup and build frontend**
+
+    ```bash
+    cd frontend/EcoLens
+    npm install
+    echo "VITE_API_BASE_URL=http://localhost:8000" > .env
+    npm run build
+    ```
+
+3. **Load extension in Chrome**
+
+    - Open `chrome://extensions/`
+    - Enable "Developer mode"
+    - Click "Load unpacked"
+    - Select the `frontend/EcoLens/dist/` folder
+
+4. **You're ready to go!**
+    - Backend API: `http://localhost:8000`
+    - Frontend: Loaded as Chrome extension
+    - Database: Running on port 3333
 
 ---
 
@@ -131,7 +260,7 @@ The second way to use this extension is throught the **auto popup** feature. Thi
 ![image](https://github.com/user-attachments/assets/0c33257a-127c-4c21-9a9a-157d16d6bd01)
 
 2. Browse for products. For demonstration, lets say I want to buy bread from NTUC. The extension will detect whether its a valid item and show a pop up if it thinks its a valid item.
-   
+
 ![image](https://github.com/user-attachments/assets/7c5b3ffb-e229-4e99-a1af-ac412b2c0f25)
 
 3. Click on the popup if it is a valid item. The extension will attempt to extract the name of the product automatically and ask for your confirmation
@@ -155,17 +284,3 @@ Wait patiently for the extension to do its thing
 ![image](https://github.com/user-attachments/assets/4143e78d-2eca-42df-b3b3-7389f77560c4)
 
 ---
-
-
-
-
-
-
-
-
-
-
-
-
-
-
