@@ -10,10 +10,20 @@ from sqlalchemy import Column
 from sqlalchemy.dialects.mysql import JSON, MEDIUMTEXT
 from pydantic import BaseModel
 
+from recommendation import aggregate_and_rank_products
 
 
 class ProductRequest(BaseModel):
     product_name: str
+
+
+class RecommendationsRequest(BaseModel):
+    categories: list[str] = Query(
+        default=["plant-based-foods-and-beverages",
+                 "plant-based-foods",
+                 "cereals-and-potatoes"],
+        description="List of categories to fetch products from",
+    )
 
 
 class Product(SQLModel, table=True):
@@ -21,7 +31,8 @@ class Product(SQLModel, table=True):
     id: str | None = Field(default=None, primary_key=True)
     cache_key: str | None = Field(default=None)
     name: str = Field(index=True)
-    environmental_score_data: str | None = Field(default=None, sa_column=Column(MEDIUMTEXT))
+    environmental_score_data: str | None = Field(
+        default=None, sa_column=Column(MEDIUMTEXT))
     categories: list[str] = Field(default=[], sa_column=Column(JSON))
     labels: str | None = Field(default=None)
 
@@ -62,20 +73,24 @@ def save_products_to_db(products: list[Product]):
 
 
 @app.post("/product_info")
-def fetch_product(request: ProductRequest, background_tasks: BackgroundTasks):  # -> list[Product]:
+# -> list[Product]:
+def fetch_product(request: ProductRequest, background_tasks: BackgroundTasks):
     product_name_encoded = requests.utils.quote(request.product_name)
 
     with Session(engine) as session:
-        statement = select(Product).where(Product.cache_key == product_name_encoded)
+        statement = select(Product).where(
+            Product.cache_key == product_name_encoded)
         products = session.exec(statement).all()
         if products:
             print(f"Cache hit for {request.product_name}")
             for p in products:
-                p.environmental_score_data = json.loads(p.environmental_score_data)
+                p.environmental_score_data = json.loads(
+                    p.environmental_score_data)
             return products
 
     url = f"https://world.openfoodfacts.net/cgi/search.pl?search_terms={product_name_encoded}&search_simple=1&json=1"
-    response = requests.get(url)
+    response = requests.get(url, headers={
+                            "User-Agent": "EcoLens/1.0 (ecolens@example.com)"})
     if response.status_code != 200:
         raise HTTPException(status_code=404, detail="Product not found")
     data = response.json()
@@ -89,7 +104,7 @@ def fetch_product(request: ProductRequest, background_tasks: BackgroundTasks):  
             "adjusted_score": product["ecoscore_data"].get("score"),
             "overall_grade": product["ecoscore_data"].get("grade"),
             "packaging_score": product["ecoscore_data"]
-                .get("adjustments", {}).get("packaging", {}).get("score"),
+            .get("adjustments", {}).get("packaging", {}).get("score"),
             "material_scores": {
                 material["material"]: {
                     "packaging_id": material.get("material"),
@@ -98,7 +113,7 @@ def fetch_product(request: ProductRequest, background_tasks: BackgroundTasks):  
                     "shape_id": material.get("shape")
                 }
                 for material in product["ecoscore_data"]
-                    .get("adjustments", {}).get("packaging", {}).get("packagings", [])
+                .get("adjustments", {}).get("packaging", {}).get("packagings", [])
             },
             "agribalyse": {
                 "co2_total": product["ecoscore_data"].get("agribalyse", {}).get("co2_total"),
@@ -127,6 +142,19 @@ def fetch_product(request: ProductRequest, background_tasks: BackgroundTasks):  
     background_tasks.add_task(save_products_to_db, products)
 
     return [p.model_dump() for p in products]
+
+
+@app.post("/recommendations")
+def get_recommendations(
+    request: RecommendationsRequest,
+):
+    categories = request.categories
+
+    products = aggregate_and_rank_products(categories, top_n=3)
+    if not products:
+        raise HTTPException(
+            status_code=404, detail="No products found for this category")
+    return products
 
 
 if __name__ == "__main__":
