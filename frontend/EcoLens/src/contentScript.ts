@@ -956,7 +956,7 @@ class ProductScraper {
                                 color: #6b7280;
                                 text-align: center;
                                 margin: 0;
-                            ">Click to learn more about sustainability</p>
+                            ">Click to find out more</p>
                         </div>
                     </div>
                 `;
@@ -1226,7 +1226,7 @@ class ProductScraper {
                             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                             animation: ecolens-slide-in 0.3s ease;
                         ">
-                            🌱 Analyzing "${product.cleanedName}" green score...
+                            🌱 Analyzing "${product.cleanedName}" Green Score...
                         </div>
                     `;
                 document.body.appendChild(successPopup);
@@ -1332,7 +1332,12 @@ class ProductScraper {
             input?.focus();
             input?.select();
 
-            input?.addEventListener("focus", () => {
+            input?.addEventListener("click", (e) => {
+                e.stopPropagation();
+            });
+
+            input?.addEventListener("focus", (e) => {
+                e.stopPropagation();
                 input.style.borderColor = "#059669";
                 setInteracting?.(true);
             });
@@ -1340,7 +1345,8 @@ class ProductScraper {
                 input.style.borderColor = "#d1d5db";
                 setInteracting?.(false);
             });
-            input?.addEventListener("input", () => {
+            input?.addEventListener("input", (e) => {
+                e.stopPropagation();
                 setInteracting?.(true);
             });
 

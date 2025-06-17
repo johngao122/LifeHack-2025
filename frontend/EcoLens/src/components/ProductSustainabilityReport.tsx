@@ -115,9 +115,26 @@ const ProductSustainabilityReport = () => {
                     transition={{ duration: 0.5 }}
                     className="text-center"
                 >
-                    <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                        🌱 Product Sustainability Report
-                    </h1>
+                    <div className="flex items-center justify-center gap-4 mb-4">
+                        <motion.img
+                            src="/ecolens_transparent.png"
+                            alt="EcoLens Logo"
+                            animate={{
+                                y: [0, -8, 0, -4, 0],
+                                x: [0, 2, -2, 1, 0],
+                            }}
+                            transition={{
+                                duration: 2,
+                                repeat: Infinity,
+                                repeatDelay: 4,
+                                ease: "easeInOut",
+                            }}
+                            className="w-12 h-12"
+                        />
+                        <h1 className="text-4xl font-bold text-gray-900">
+                            Product Sustainability Report
+                        </h1>
+                    </div>
                     <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                         Comprehensive environmental impact analysis for your
                         product
