@@ -2,6 +2,10 @@ import os
 import requests
 import uvicorn
 import json
+import pymysql
+
+
+pymysql.install_as_MySQLdb()
 
 from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Query, BackgroundTasks
@@ -45,6 +49,11 @@ class Product(SQLModel, table=True):
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "mysql+pymysql://ecolens:password@localhost:3333/ecolens"
 )
+PORT = int(os.getenv("PORT", 8000))
+
+
+if DATABASE_URL.startswith("mysql://"):
+    DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
 
 engine = create_engine(DATABASE_URL)
 
@@ -71,9 +80,18 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+def health_check():
+    return {"status": "healthy", "message": "EcoLens API is running"}
+
+
 @app.on_event("startup")
 def on_startup():
-    create_db_and_tables()
+    try:
+        create_db_and_tables()
+        print("Database tables created successfully")
+    except Exception as e:
+        print(f"Warning: Could not create database tables: {e}")
 
 
 def save_products_to_db(products: list[Product]):
@@ -162,4 +180,4 @@ def get_recommendations(
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True, log_level="info")
