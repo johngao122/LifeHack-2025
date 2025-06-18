@@ -320,11 +320,9 @@ class ProductScraper {
 
         const metaProducts = this.extractFromMetaTags();
         if (metaProducts.length > 0) {
-            console.log("[EcoLens] Found meta tag products:", metaProducts);
             return metaProducts;
         }
 
-        console.log("[EcoLens] No structured data found, using DOM selectors");
         return this.extractFromDomSelectors();
     }
 
@@ -333,10 +331,6 @@ class ProductScraper {
 
         const jsonLdScripts = document.querySelectorAll(
             'script[type="application/ld+json"]'
-        );
-
-        console.log(
-            `[EcoLens] Found ${jsonLdScripts.length} JSON-LD script tags`
         );
 
         jsonLdScripts.forEach((script, index) => {
@@ -502,10 +496,6 @@ class ProductScraper {
         }
 
         if (products.length > 0) {
-            console.log(
-                "[EcoLens] Found DOM high-priority products:",
-                products
-            );
             return this.deduplicateProducts(products);
         }
 
@@ -602,7 +592,6 @@ class ProductScraper {
         const lowerText = text.toLowerCase();
 
         if (blacklist.some((word) => lowerText.includes(word))) {
-            console.log(`[EcoLens] Rejected blacklisted text: "${text}"`);
             return false;
         }
 
@@ -656,7 +645,6 @@ class ProductScraper {
 
     private isLikelyProductTitle(text: string): boolean {
         if (/^[A-Z\s;\/]+$/.test(text)) {
-            console.log(`[EcoLens] Rejected all-caps text: "${text}"`);
             return false;
         }
 
@@ -674,9 +662,6 @@ class ProductScraper {
         ];
 
         if (badPatterns.some((pattern) => pattern.test(text))) {
-            console.log(
-                `[EcoLens] Rejected as unlikely product title: "${text}"`
-            );
             return false;
         }
 
@@ -694,17 +679,11 @@ class ProductScraper {
                     text
                 );
             if (isSingleAttribute) {
-                console.log(
-                    `[EcoLens] Rejected single attribute word: "${text}"`
-                );
                 return false;
             }
         }
 
         if (!looksLikeProductName) {
-            console.log(
-                `[EcoLens] Text doesn't look like product name: "${text}"`
-            );
             return false;
         }
 
@@ -733,9 +712,6 @@ class ProductScraper {
             goodLength &&
             goodWordCount &&
             !hasSuspiciousChars;
-        console.log(
-            `[EcoLens] Title likelihood for "${text}": ${isLikely} (goodPattern: ${hasGoodPattern}, goodLength: ${goodLength}, goodWordCount: ${goodWordCount}, suspicious: ${hasSuspiciousChars})`
-        );
 
         return isLikely;
     }
@@ -791,9 +767,6 @@ class ProductScraper {
             element.closest(selector)
         );
         if (closestBadElement) {
-            console.log(
-                `[EcoLens] Rejected element in spec/recommendation section (${closestBadElement}): "${element.textContent?.trim()}"`
-            );
             return false;
         }
 
@@ -819,9 +792,6 @@ class ProductScraper {
                     parentText.includes(keyword)
                 )
             ) {
-                console.log(
-                    `[EcoLens] Rejected element in recommendation section by text: "${element.textContent?.trim()}"`
-                );
                 return false;
             }
         }
@@ -833,9 +803,6 @@ class ProductScraper {
         const opacity = parseFloat(computedStyle.opacity) || 1;
 
         if (display === "none" || visibility === "hidden" || opacity < 0.1) {
-            console.log(
-                `[EcoLens] Rejected hidden element: "${element.textContent?.trim()}"`
-            );
             return false;
         }
 
@@ -848,10 +815,6 @@ class ProductScraper {
 
         const hasGoodHierarchy = (isLargeFont || isProminentTag) && isNearTop;
 
-        console.log(
-            `[EcoLens] Visual hierarchy check for "${element.textContent?.trim()}": ${hasGoodHierarchy} (fontSize: ${fontSize}, prominent: ${isProminentTag}, nearTop: ${isNearTop})`
-        );
-
         return hasGoodHierarchy;
     }
 
@@ -862,15 +825,6 @@ class ProductScraper {
 
     public showProductDetectionNotification(product: ProductInfo): void {
         try {
-            console.log(
-                "[EcoLens] Showing notification for:",
-                product.cleanedName
-            );
-
-            console.log(
-                `🌱 EcoLens Detected Food Product: ${product.cleanedName}`
-            );
-
             try {
                 const notification = document.createElement("div");
                 notification.textContent = `🌱 EcoLens: ${product.cleanedName}`;
@@ -919,12 +873,6 @@ class ProductScraper {
 
     public showProductDetectedPopup(products: ProductInfo[]): void {
         try {
-            console.log(
-                "[EcoLens] Showing product popup for:",
-                products.length,
-                "products"
-            );
-
             const existingPopup = document.getElementById(
                 "ecolens-product-popup"
             );
@@ -1122,12 +1070,6 @@ class ProductScraper {
         setInteracting?: (interacting: boolean) => void
     ): void {
         try {
-            console.log(
-                "[EcoLens] Showing product validation for:",
-                products.length,
-                "products"
-            );
-
             const existingPopup = document.getElementById("ecolens-popup");
             if (!existingPopup) {
                 console.warn(
@@ -1311,16 +1253,7 @@ class ProductScraper {
                 document.body.appendChild(successPopup);
 
                 try {
-                    console.log(
-                        "[EcoLens] Starting API calls for product:",
-                        product.cleanedName
-                    );
-
                     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-                    console.log(
-                        "[EcoLens] Calling product API for:",
-                        product.cleanedName
-                    );
 
                     const productResponse = await fetch(
                         `${apiBaseUrl}/product_info`,
@@ -1342,10 +1275,6 @@ class ProductScraper {
                     }
 
                     const rawProductData = await productResponse.json();
-                    console.log(
-                        "[EcoLens] Raw product data received:",
-                        rawProductData
-                    );
 
                     const productData = {
                         id: rawProductData.id,
@@ -1703,22 +1632,7 @@ class ProductScraper {
                         }),
                     };
 
-                    console.log("[EcoLens] Product data formatted:", {
-                        name: productData.name,
-                        categories: productData.categories,
-                        environmentalScore: productData.environmentalScore,
-                    });
-
                     const topCategories = productData.categories.slice(0, 3);
-                    console.log(
-                        "[EcoLens] Top categories for recommendations:",
-                        topCategories
-                    );
-
-                    console.log(
-                        "[EcoLens] Calling recommendations API with categories:",
-                        topCategories
-                    );
 
                     const recommendationsResponse = await fetch(
                         `${apiBaseUrl}/recommendations`,
@@ -1737,38 +1651,6 @@ class ProductScraper {
                         );
                     }
 
-                    const rawRecommendationsData =
-                        await recommendationsResponse.json();
-                    console.log(
-                        "[EcoLens] Raw recommendations data received:",
-                        rawRecommendationsData
-                    );
-
-                    const recommendations = {
-                        recommendations:
-                            rawRecommendationsData.recommendations.map(
-                                (item: any) => ({
-                                    id: item.id,
-                                    name: item.product_name,
-                                    environmentalScore:
-                                        item.ecoscore_score || 0,
-                                    grade: item.ecoscore_grade
-                                        ? item.ecoscore_grade.toUpperCase()
-                                        : "N/A",
-                                })
-                            ),
-                        count: rawRecommendationsData.recommendations.length,
-                    };
-
-                    console.log(
-                        "[EcoLens] Recommendations formatted:",
-                        recommendations.count,
-                        "items"
-                    );
-
-                    console.log(
-                        "[EcoLens] Storing data in chrome.storage.local"
-                    );
                     chrome.storage.local.set({
                         detectedProduct: {
                             name: product.cleanedName,
@@ -1778,12 +1660,8 @@ class ProductScraper {
                             timestamp: Date.now(),
                         },
                     });
-                    console.log("[EcoLens] Data stored successfully");
 
                     setTimeout(() => {
-                        console.log(
-                            "[EcoLens] Removing success popup and opening report tab"
-                        );
                         successPopup.remove();
                         chrome.runtime.sendMessage({
                             action: "openReportTab",
@@ -1798,16 +1676,8 @@ class ProductScraper {
                     });
 
                     successPopup.remove();
-                    console.log("[EcoLens] Success popup removed due to error");
 
-                    console.log(
-                        "[EcoLens] Checking if error is 404...",
-                        apiError.message
-                    );
                     if (apiError.message && apiError.message.includes("404")) {
-                        console.log(
-                            "[EcoLens] 404 error detected, showing failure popup"
-                        );
                         const failurePopup = document.createElement("div");
                         failurePopup.innerHTML = `
                             <div style="
@@ -1841,14 +1711,9 @@ class ProductScraper {
                         document.body.appendChild(failurePopup);
 
                         setTimeout(() => {
-                            console.log("[EcoLens] Removing 404 failure popup");
                             failurePopup.remove();
                         }, 5000);
                     } else {
-                        console.log(
-                            "[EcoLens] Non-404 error, using fallback behavior"
-                        );
-
                         chrome.storage.local.set({
                             detectedProduct: {
                                 name: product.cleanedName,
@@ -1858,9 +1723,6 @@ class ProductScraper {
                                 timestamp: Date.now(),
                             },
                         });
-                        console.log(
-                            "[EcoLens] Fallback data stored, opening report tab"
-                        );
 
                         setTimeout(() => {
                             chrome.runtime.sendMessage({
@@ -2019,13 +1881,10 @@ class ProductScraper {
 }
 
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
-    console.log("[EcoLens] Received message:", request);
-
     if (request.action === "scrapeProducts") {
         try {
             const scraper = new ProductScraper();
             const products = scraper.scrapeProducts();
-            console.log("[EcoLens] Sending response with products:", products);
             sendResponse({ products });
         } catch (error) {
             console.error("[EcoLens] Error in message handler:", error);
@@ -2033,7 +1892,6 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         }
     } else if (request.action === "updateAutoPopup") {
         autoPopupEnabled = request.enabled;
-        console.log("[EcoLens] Auto-popup setting updated:", autoPopupEnabled);
     }
 
     return true;
@@ -2048,17 +1906,14 @@ let autoPopupEnabled = true;
 
 const checkForProducts = (currentUrl: string, isRetry = false) => {
     if (isProcessing) {
-        console.log("[EcoLens] Already processing, skipping");
         return;
     }
 
     if (location.href !== currentUrl) {
-        console.log("[EcoLens] URL changed during check, aborting");
         return;
     }
 
     if (popupShownForUrl.has(currentUrl)) {
-        console.log("[EcoLens] Popup already shown for this URL, skipping");
         return;
     }
 
@@ -2068,9 +1923,6 @@ const checkForProducts = (currentUrl: string, isRetry = false) => {
     const scraper = new ProductScraper();
     if (scraper.isFoodPage()) {
         const products = scraper.scrapeProducts();
-        console.log(
-            `[EcoLens] Found ${products.length} products on ${currentUrl}`
-        );
 
         if (products.length > 0) {
             if (location.href === currentUrl) {
@@ -2103,16 +1955,10 @@ const checkForProducts = (currentUrl: string, isRetry = false) => {
                         );
                     }
                 } else {
-                    console.log(
-                        "[EcoLens] Auto-popup disabled, skipping popup display"
-                    );
                 }
             }
         } else if (isRetry && retryCount < maxRetries) {
             retryCount++;
-            console.log(
-                `[EcoLens] Retry ${retryCount}/${maxRetries} for ${currentUrl}`
-            );
 
             popupShownForUrl.delete(currentUrl);
             setTimeout(() => {
@@ -2123,9 +1969,6 @@ const checkForProducts = (currentUrl: string, isRetry = false) => {
         } else if (!isRetry && products.length === 0) {
             const isShopee = window.location.hostname.includes("shopee");
             if (isShopee) {
-                console.log(
-                    "[EcoLens] Shopee detected, starting retry sequence"
-                );
                 retryCount = 0;
 
                 popupShownForUrl.delete(currentUrl);
@@ -2165,7 +2008,6 @@ new MutationObserver((mutations) => {
     if (url !== lastUrl) {
         lastUrl = url;
         retryCount = 0;
-        console.log("[EcoLens] URL changed to:", url);
 
         popupShownForUrl.clear();
 
@@ -2182,27 +2024,19 @@ new MutationObserver((mutations) => {
 
 function initializeEcoLens() {
     if ((window as any).ecoLensInitialized) {
-        console.log("[EcoLens] Already initialized, skipping...");
         return;
     }
     (window as any).ecoLensInitialized = true;
-
-    console.log("[EcoLens] Initializing on:", window.location.href);
 
     try {
         chrome.storage.sync.get(["autoPopupEnabled"], (result) => {
             if (result.autoPopupEnabled !== undefined) {
                 autoPopupEnabled = result.autoPopupEnabled;
             }
-            console.log(
-                "[EcoLens] Loaded auto-popup setting:",
-                autoPopupEnabled
-            );
 
             try {
                 const scraper = new ProductScraper();
                 const isFoodPage = scraper.isFoodPage();
-                console.log("[EcoLens] Is food page:", isFoodPage);
 
                 if (isFoodPage) {
                     checkForProducts(window.location.href, false);
@@ -2220,7 +2054,6 @@ function initializeEcoLens() {
         try {
             const scraper = new ProductScraper();
             const isFoodPage = scraper.isFoodPage();
-            console.log("[EcoLens] Is food page:", isFoodPage);
 
             if (isFoodPage) {
                 checkForProducts(window.location.href, false);

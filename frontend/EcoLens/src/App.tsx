@@ -194,17 +194,8 @@ function App() {
             const productData = await getProductInfo(cleanedSearchTerm);
 
             const topCategories = productData.categories.slice(0, 3);
-            console.log(
-                "[EcoLens App] Top categories for recommendations:",
-                topCategories
-            );
 
             const recommendations = await getRecommendations(topCategories);
-            console.log(
-                "[EcoLens App] Recommendations received:",
-                recommendations.count,
-                "items"
-            );
 
             const searchResultData: ProductInfo[] = [
                 {
@@ -216,9 +207,7 @@ function App() {
             ];
 
             setSearchResults(searchResultData);
-            console.log("[EcoLens App] Search results set in state");
 
-            console.log("[EcoLens App] Storing data in chrome.storage.local");
             chrome.storage.local.set({
                 detectedProduct: {
                     name: cleanedSearchTerm,
@@ -230,9 +219,7 @@ function App() {
                 productData: productData,
                 recommendations: recommendations,
             });
-            console.log("[EcoLens App] Data stored successfully");
 
-            console.log("[EcoLens App] Sending message to open report tab");
             chrome.runtime.sendMessage({ action: "openReportTab" });
         } catch (error: any) {
             console.error("Error fetching product data:", error);
@@ -355,7 +342,7 @@ function App() {
                                 repeatDelay: 3,
                                 ease: "easeInOut",
                             }}
-                            className="w-8 h-8"
+                            className="w-15 h-15"
                         />
                         <div>
                             <h1 className="text-base font-bold text-gray-800">
