@@ -63,19 +63,35 @@ def fetch_products_by_category(
             name = product.get("product_name")
             ecoscore_grade = product.get("ecoscore_grade")
 
-            if ecoscore is not None and name:
-                try:
+            if name:
 
-                    ecoscore_float = float(ecoscore)
+                default_score = 50
+                if ecoscore_grade:
+                    grade_scores = {"a": 80, "b": 65, "c": 50, "d": 35, "e": 20}
+                    default_score = grade_scores.get(ecoscore_grade.lower(), 50)
+
+                try:
+                    ecoscore_float = (
+                        float(ecoscore) if ecoscore is not None else default_score
+                    )
                     valid_products.append(
                         {
+                            "id": product.get("_id", f"rec_{len(valid_products)}"),
                             "product_name": name,
                             "ecoscore_score": ecoscore_float,
-                            "ecoscore_grade": ecoscore_grade,
+                            "ecoscore_grade": ecoscore_grade if ecoscore_grade else "c",
                         }
                     )
                 except (ValueError, TypeError):
-                    continue
+
+                    valid_products.append(
+                        {
+                            "id": product.get("_id", f"rec_{len(valid_products)}"),
+                            "product_name": name,
+                            "ecoscore_score": default_score,
+                            "ecoscore_grade": ecoscore_grade if ecoscore_grade else "c",
+                        }
+                    )
 
         logger.info(
             f"Fetched {len(valid_products)} valid products for category '{category}'"
