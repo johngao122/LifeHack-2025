@@ -80,10 +80,19 @@ def save_products_to_db(products: list[Product]):
     with Session(engine) as session:
         for p in products:
             p.environmental_score_data = json.dumps(p.environmental_score_data)
-            session.add(p)
+
+            existing_product = session.get(Product, p.id)
+            if existing_product:
+
+                existing_product.cache_key = p.cache_key
+                existing_product.name = p.name
+                existing_product.environmental_score_data = p.environmental_score_data
+                existing_product.categories = p.categories
+                existing_product.labels = p.labels
+            else:
+
+                session.add(p)
         session.commit()
-        for p in products:
-            session.refresh(p)
 
 
 @app.post("/product_info")

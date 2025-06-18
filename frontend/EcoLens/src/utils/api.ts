@@ -309,38 +309,62 @@ export const getProductInfo = async (
     const rawData = rawDataArray[0];
 
     const formattedData: FormattedProductData = {
-        id: rawData.id,
-        name: rawData.name,
-        environmentalScore: rawData.environmental_score_data.adjusted_score,
-        grade: rawData.environmental_score_data.overall_grade.toUpperCase(),
-        packagingScore: rawData.environmental_score_data.packaging_score,
-        categories: rawData.categories,
-        labels: rawData.labels,
+        id: rawData.id || "unknown",
+        name: rawData.name || "Unknown Product",
+        environmentalScore:
+            rawData.environmental_score_data?.adjusted_score ?? 0,
+        grade:
+            rawData.environmental_score_data?.overall_grade?.toUpperCase() ??
+            "N/A",
+        packagingScore: rawData.environmental_score_data?.packaging_score ?? 0,
+        categories: rawData.categories || [],
+        labels: rawData.labels || [],
         carbonFootprint: {
-            totalCo2Per100g: Math.round(
-                rawData.environmental_score_data.agribalyse.co2_total * 100
-            ),
-            totalCo2PerKg: Math.round(
-                rawData.environmental_score_data.agribalyse.co2_total * 1000
-            ),
-            breakdown: calculateCarbonBreakdown(
-                rawData.environmental_score_data.agribalyse
-            ),
+            totalCo2Per100g: rawData.environmental_score_data?.agribalyse
+                ?.co2_total
+                ? Math.round(
+                      rawData.environmental_score_data.agribalyse.co2_total *
+                          100
+                  )
+                : 0,
+            totalCo2PerKg: rawData.environmental_score_data?.agribalyse
+                ?.co2_total
+                ? Math.round(
+                      rawData.environmental_score_data.agribalyse.co2_total *
+                          1000
+                  )
+                : 0,
+            breakdown: rawData.environmental_score_data?.agribalyse
+                ? calculateCarbonBreakdown(
+                      rawData.environmental_score_data.agribalyse
+                  )
+                : {
+                      agriculture: { value: 0, percentage: 0 },
+                      consumption: { value: 0, percentage: 0 },
+                      distribution: { value: 0, percentage: 0 },
+                      packaging: { value: 0, percentage: 0 },
+                      processing: { value: 0, percentage: 0 },
+                      transportation: { value: 0, percentage: 0 },
+                  },
         },
-        materialBreakdown: Object.entries(
-            rawData.environmental_score_data.material_scores
-        ).map(([key, material]) => {
-            const { codeNumber, materialName } = parseRecyclingCode(key);
-            return {
-                key: key,
-                codeNumber,
-                materialName,
-                material: material.material,
-                score: material.environmental_score_material_score,
-                shape: material.shape ? material.shape.replace("en:", "") : "",
-                ratio: material.environmental_score_shape_ratio,
-            };
-        }),
+        materialBreakdown: rawData.environmental_score_data.material_scores
+            ? Object.entries(
+                  rawData.environmental_score_data.material_scores
+              ).map(([key, material]) => {
+                  const { codeNumber, materialName } = parseRecyclingCode(key);
+                  return {
+                      key: key,
+                      codeNumber,
+                      materialName,
+                      material: material.material,
+                      score: material.environmental_score_material_score,
+                      shape: material.shape
+                          ? material.shape.replace("en:", "")
+                          : "",
+                      ratio: material.environmental_score_shape_ratio,
+                  };
+              })
+            : [], // Default to empty array if material_scores is null/undefined
     };
 
     return formattedData;

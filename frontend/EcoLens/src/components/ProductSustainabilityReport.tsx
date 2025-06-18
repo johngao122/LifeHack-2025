@@ -278,16 +278,28 @@ const ProductSustainabilityReport = () => {
                                         <span className="text-lg font-semibold">
                                             Overall Score
                                         </span>
-                                        <span
-                                            className={`text-4xl font-bold ${getScoreColor(
-                                                productData.environmentalScore
-                                            )}`}
-                                        >
-                                            {productData.environmentalScore}%
-                                        </span>
+                                        {productData.environmentalScore !==
+                                            null &&
+                                        productData.environmentalScore !==
+                                            undefined ? (
+                                            <span
+                                                className={`text-4xl font-bold ${getScoreColor(
+                                                    productData.environmentalScore
+                                                )}`}
+                                            >
+                                                {productData.environmentalScore}
+                                                %
+                                            </span>
+                                        ) : (
+                                            <span className="text-2xl font-bold text-gray-400">
+                                                Data unavailable
+                                            </span>
+                                        )}
                                     </div>
                                     <Progress
-                                        value={productData.environmentalScore}
+                                        value={
+                                            productData.environmentalScore || 0
+                                        }
                                         className="h-4"
                                     />
                                     <p className="text-gray-600">
@@ -335,16 +347,31 @@ const ProductSustainabilityReport = () => {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-2xl font-bold text-gray-900">
-                                                {
-                                                    productData.carbonFootprint
-                                                        .totalCo2Per100g
-                                                }
-                                                g
-                                            </div>
-                                            <div className="text-sm text-gray-500">
-                                                CO2e per 100g
-                                            </div>
+                                            {productData.carbonFootprint
+                                                .totalCo2Per100g > 0 ? (
+                                                <>
+                                                    <div className="text-2xl font-bold text-gray-900">
+                                                        {
+                                                            productData
+                                                                .carbonFootprint
+                                                                .totalCo2Per100g
+                                                        }
+                                                        g
+                                                    </div>
+                                                    <div className="text-sm text-gray-500">
+                                                        CO2e per 100g
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="text-lg font-bold text-gray-400">
+                                                        Data unavailable
+                                                    </div>
+                                                    <div className="text-sm text-gray-500">
+                                                        CO2e per 100g
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
 
@@ -362,63 +389,84 @@ const ProductSustainabilityReport = () => {
                                             </AccordionTrigger>
                                             <AccordionContent className="!bg-white px-4 pb-4 border-0">
                                                 <div className="space-y-4 pt-2 bg-white">
-                                                    {carbonBreakdown
-                                                        .filter(
-                                                            (item) =>
-                                                                item.percentage >
-                                                                0
-                                                        )
-                                                        .sort(
-                                                            (a, b) =>
-                                                                b.percentage -
-                                                                a.percentage
-                                                        )
-                                                        .map((item, index) => (
-                                                            <motion.div
-                                                                key={item.stage}
-                                                                initial={{
-                                                                    opacity: 0,
-                                                                    x: -10,
-                                                                }}
-                                                                animate={{
-                                                                    opacity: 1,
-                                                                    x: 0,
-                                                                }}
-                                                                transition={{
-                                                                    duration: 0.3,
-                                                                    delay:
-                                                                        index *
-                                                                        0.05,
-                                                                }}
-                                                                className="space-y-2 bg-white"
-                                                            >
-                                                                <div className="flex justify-between items-center">
-                                                                    <span className="text-sm font-medium text-gray-700">
-                                                                        {
+                                                    {carbonBreakdown.some(
+                                                        (item) =>
+                                                            item.percentage > 0
+                                                    ) ? (
+                                                        carbonBreakdown
+                                                            .filter(
+                                                                (item) =>
+                                                                    item.percentage >
+                                                                    0
+                                                            )
+                                                            .sort(
+                                                                (a, b) =>
+                                                                    b.percentage -
+                                                                    a.percentage
+                                                            )
+                                                            .map(
+                                                                (
+                                                                    item,
+                                                                    index
+                                                                ) => (
+                                                                    <motion.div
+                                                                        key={
                                                                             item.stage
                                                                         }
-                                                                    </span>
-                                                                    <span className="text-sm font-semibold text-gray-900">
-                                                                        {
-                                                                            item.percentage
-                                                                        }
-                                                                        %
-                                                                    </span>
-                                                                </div>
-                                                                <Progress
-                                                                    value={
-                                                                        item.percentage
-                                                                    }
-                                                                    className="h-2"
-                                                                />
-                                                                <p className="text-xs text-gray-500">
-                                                                    {item.value.toFixed(
-                                                                        3
-                                                                    )}{" "}
-                                                                    kg CO2e
-                                                                </p>
-                                                            </motion.div>
-                                                        ))}
+                                                                        initial={{
+                                                                            opacity: 0,
+                                                                            x: -10,
+                                                                        }}
+                                                                        animate={{
+                                                                            opacity: 1,
+                                                                            x: 0,
+                                                                        }}
+                                                                        transition={{
+                                                                            duration: 0.3,
+                                                                            delay:
+                                                                                index *
+                                                                                0.05,
+                                                                        }}
+                                                                        className="space-y-2 bg-white"
+                                                                    >
+                                                                        <div className="flex justify-between items-center">
+                                                                            <span className="text-sm font-medium text-gray-700">
+                                                                                {
+                                                                                    item.stage
+                                                                                }
+                                                                            </span>
+                                                                            <span className="text-sm font-semibold text-gray-900">
+                                                                                {
+                                                                                    item.percentage
+                                                                                }
+
+                                                                                %
+                                                                            </span>
+                                                                        </div>
+                                                                        <Progress
+                                                                            value={
+                                                                                item.percentage
+                                                                            }
+                                                                            className="h-2"
+                                                                        />
+                                                                        <p className="text-xs text-gray-500">
+                                                                            {item.value.toFixed(
+                                                                                3
+                                                                            )}{" "}
+                                                                            kg
+                                                                            CO2e
+                                                                        </p>
+                                                                    </motion.div>
+                                                                )
+                                                            )
+                                                    ) : (
+                                                        <div className="text-center py-8">
+                                                            <p className="text-gray-500 text-lg">
+                                                                Carbon footprint
+                                                                data unavailable
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </AccordionContent>
                                         </AccordionItem>
@@ -446,12 +494,30 @@ const ProductSustainabilityReport = () => {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-2xl font-bold text-gray-900">
-                                                {productData.packagingScore}
-                                            </div>
-                                            <div className="text-sm text-gray-500">
-                                                / 100
-                                            </div>
+                                            {productData.packagingScore !==
+                                                null &&
+                                            productData.packagingScore !==
+                                                undefined ? (
+                                                <>
+                                                    <div className="text-2xl font-bold text-gray-900">
+                                                        {
+                                                            productData.packagingScore
+                                                        }
+                                                    </div>
+                                                    <div className="text-sm text-gray-500">
+                                                        / 100
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="text-lg font-bold text-gray-400">
+                                                        Data unavailable
+                                                    </div>
+                                                    <div className="text-sm text-gray-500">
+                                                        / 100
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
 
@@ -469,95 +535,112 @@ const ProductSustainabilityReport = () => {
                                             </AccordionTrigger>
                                             <AccordionContent className="!bg-white px-4 pb-4 border-0">
                                                 <div className="space-y-4 pt-2 bg-white">
-                                                    {productData.materialBreakdown.map(
-                                                        (material, index) => (
-                                                            <motion.div
-                                                                key={
-                                                                    material.key
-                                                                }
-                                                                initial={{
-                                                                    opacity: 0,
-                                                                    x: -10,
-                                                                }}
-                                                                animate={{
-                                                                    opacity: 1,
-                                                                    x: 0,
-                                                                }}
-                                                                transition={{
-                                                                    duration: 0.3,
-                                                                    delay:
-                                                                        index *
-                                                                        0.05,
-                                                                }}
-                                                                className="border border-gray-200 rounded-lg p-4 space-y-2 bg-white"
-                                                            >
-                                                                <div className="flex justify-between items-start">
-                                                                    <div>
-                                                                        <h4 className="font-medium text-gray-900">
-                                                                            {
-                                                                                material.materialName
+                                                    {productData
+                                                        .materialBreakdown
+                                                        .length > 0 ? (
+                                                        productData.materialBreakdown.map(
+                                                            (
+                                                                material,
+                                                                index
+                                                            ) => (
+                                                                <motion.div
+                                                                    key={
+                                                                        material.key
+                                                                    }
+                                                                    initial={{
+                                                                        opacity: 0,
+                                                                        x: -10,
+                                                                    }}
+                                                                    animate={{
+                                                                        opacity: 1,
+                                                                        x: 0,
+                                                                    }}
+                                                                    transition={{
+                                                                        duration: 0.3,
+                                                                        delay:
+                                                                            index *
+                                                                            0.05,
+                                                                    }}
+                                                                    className="border border-gray-200 rounded-lg p-4 space-y-2 bg-white"
+                                                                >
+                                                                    <div className="flex justify-between items-start">
+                                                                        <div>
+                                                                            <h4 className="font-medium text-gray-900">
+                                                                                {
+                                                                                    material.materialName
+                                                                                }
+                                                                            </h4>
+                                                                            <p className="text-sm text-gray-600">
+                                                                                Shape:{" "}
+                                                                                {material.shape.toUpperCase()}
+                                                                            </p>
+                                                                        </div>
+                                                                        <Badge
+                                                                            variant={
+                                                                                material.score >=
+                                                                                70
+                                                                                    ? "default"
+                                                                                    : material.score >=
+                                                                                      50
+                                                                                    ? "secondary"
+                                                                                    : "destructive"
                                                                             }
-                                                                        </h4>
-                                                                        <p className="text-sm text-gray-600">
-                                                                            Shape:{" "}
-                                                                            {material.shape.toUpperCase()}
-                                                                        </p>
-                                                                    </div>
-                                                                    <Badge
-                                                                        variant={
-                                                                            material.score >=
-                                                                            70
-                                                                                ? "default"
-                                                                                : material.score >=
-                                                                                  50
-                                                                                ? "secondary"
-                                                                                : "destructive"
-                                                                        }
-                                                                        className="font-semibold"
-                                                                    >
-                                                                        {
-                                                                            material.score
-                                                                        }
-                                                                        /100
-                                                                    </Badge>
-                                                                </div>
-                                                                <div className="space-y-1">
-                                                                    <div className="flex justify-between text-sm">
-                                                                        <span>
-                                                                            Environmental
-                                                                            Score
-                                                                        </span>
-                                                                        <span>
+                                                                            className="font-semibold"
+                                                                        >
                                                                             {
                                                                                 material.score
                                                                             }
-                                                                            %
-                                                                        </span>
+                                                                            /100
+                                                                        </Badge>
                                                                     </div>
-                                                                    <Progress
-                                                                        value={
-                                                                            material.score
-                                                                        }
-                                                                        className="h-2"
-                                                                    />
-                                                                    <div className="flex justify-between text-xs text-gray-500">
-                                                                        <span>
-                                                                            Shape
-                                                                            Ratio:{" "}
-                                                                            {
-                                                                                material.ratio
+                                                                    <div className="space-y-1">
+                                                                        <div className="flex justify-between text-sm">
+                                                                            <span>
+                                                                                Environmental
+                                                                                Score
+                                                                            </span>
+                                                                            <span>
+                                                                                {
+                                                                                    material.score
+                                                                                }
+
+                                                                                %
+                                                                            </span>
+                                                                        </div>
+                                                                        <Progress
+                                                                            value={
+                                                                                material.score
                                                                             }
-                                                                            %
-                                                                        </span>
-                                                                        <span>
-                                                                            Code:{" "}
-                                                                            {material.codeNumber ||
-                                                                                "N/A"}
-                                                                        </span>
+                                                                            className="h-2"
+                                                                        />
+                                                                        <div className="flex justify-between text-xs text-gray-500">
+                                                                            <span>
+                                                                                Shape
+                                                                                Ratio:{" "}
+                                                                                {
+                                                                                    material.ratio
+                                                                                }
+
+                                                                                %
+                                                                            </span>
+                                                                            <span>
+                                                                                Code:{" "}
+                                                                                {material.codeNumber ||
+                                                                                    "N/A"}
+                                                                            </span>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            </motion.div>
+                                                                </motion.div>
+                                                            )
                                                         )
+                                                    ) : (
+                                                        <div className="text-center py-8">
+                                                            <p className="text-gray-500 text-lg">
+                                                                Material
+                                                                breakdown data
+                                                                unavailable
+                                                            </p>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </AccordionContent>
@@ -582,45 +665,53 @@ const ProductSustainabilityReport = () => {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {recommendations.recommendations
-                                .slice(0, 3)
-                                .map((rec, index) => (
-                                    <motion.div
-                                        key={rec.id}
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{
-                                            duration: 0.4,
-                                            delay: 0.6 + index * 0.1,
-                                        }}
-                                        className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                                    >
-                                        <div>
-                                            <h4 className="font-medium text-gray-900">
-                                                {rec.name}
-                                            </h4>
-                                            <p className="text-sm text-gray-600">
-                                                Sustainable alternative
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <Badge
-                                                className={getGradeColor(
-                                                    rec.grade
-                                                )}
-                                            >
-                                                Grade {rec.grade}
-                                            </Badge>
-                                            <span
-                                                className={`text-sm font-medium ${getScoreColor(
-                                                    rec.environmentalScore
-                                                )}`}
-                                            >
-                                                {rec.environmentalScore}%
-                                            </span>
-                                        </div>
-                                    </motion.div>
-                                ))}
+                            {recommendations.recommendations.length > 0 ? (
+                                recommendations.recommendations
+                                    .slice(0, 3)
+                                    .map((rec, index) => (
+                                        <motion.div
+                                            key={rec.id}
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{
+                                                duration: 0.4,
+                                                delay: 0.6 + index * 0.1,
+                                            }}
+                                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                                        >
+                                            <div>
+                                                <h4 className="font-medium text-gray-900">
+                                                    {rec.name}
+                                                </h4>
+                                                <p className="text-sm text-gray-600">
+                                                    Sustainable alternative
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <Badge
+                                                    className={getGradeColor(
+                                                        rec.grade
+                                                    )}
+                                                >
+                                                    Grade {rec.grade}
+                                                </Badge>
+                                                <span
+                                                    className={`text-sm font-medium ${getScoreColor(
+                                                        rec.environmentalScore
+                                                    )}`}
+                                                >
+                                                    {rec.environmentalScore}%
+                                                </span>
+                                            </div>
+                                        </motion.div>
+                                    ))
+                            ) : (
+                                <div className="text-center py-8">
+                                    <p className="text-gray-500 text-lg">
+                                        No recommendations available
+                                    </p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </motion.div>
