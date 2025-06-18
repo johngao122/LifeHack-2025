@@ -288,16 +288,34 @@ const calculateCarbonBreakdown = (
 export const getProductInfo = async (
     productName: string
 ): Promise<FormattedProductData> => {
-    const response = await fetch(`${API_BASE_URL}/product_info`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ product_name: productName }),
-    });
+    console.log("API_BASE_URL:", API_BASE_URL);
+    console.log("Making request to:", `${API_BASE_URL}/product_info`);
+    console.log("Request body:", JSON.stringify({ product_name: productName }));
 
-    if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
+    let response: Response;
+
+    try {
+        response = await fetch(`${API_BASE_URL}/product_info`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ product_name: productName }),
+        });
+
+        console.log("Response status:", response.status);
+        console.log("Response ok:", response.ok);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("API Error response:", errorText);
+            throw new Error(
+                `API request failed: ${response.status} - ${errorText}`
+            );
+        }
+    } catch (fetchError) {
+        console.error("Fetch error:", fetchError);
+        throw fetchError;
     }
 
     const rawDataArray = (await response.json()) as ProductData[];

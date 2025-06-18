@@ -22,8 +22,22 @@ def fetch_products_by_category(
         List of product dictionaries with product_name and ecoscore_score
     """
     try:
+
+        formatted_category = category.lower().replace(" ", "-").replace("_", "-")
+
+        category_mappings = {
+            "ice-creams-and-sorbets": "ice-creams",
+            "ice-cream-tubs": "ice-creams",
+            "frozen-foods": "frozen-products",
+            "frozen-desserts": "frozen-desserts",
+        }
+
+        final_category = category_mappings.get(formatted_category, formatted_category)
+
+        logger.info(f"Searching for category: '{category}' -> '{final_category}'")
+
         params = {
-            "categories_tags": category,
+            "categories_tags": final_category,
             "page_size": page_size,
             "fields": "product_name,ecoscore_score,ecoscore_grade",
             "lc": "en",
@@ -31,11 +45,17 @@ def fetch_products_by_category(
 
         headers = {"User-Agent": USER_AGENT}
 
+        logger.info(f"Making request to: {OPENFOODFACTS_API_V2} with params: {params}")
+
         response = requests.get(OPENFOODFACTS_API_V2, params=params, headers=headers)
         response.raise_for_status()
 
         data = response.json()
         products = data.get("products", [])
+
+        logger.info(
+            f"OpenFoodFacts returned {len(products)} products for category '{final_category}'"
+        )
 
         valid_products = []
         for product in products:

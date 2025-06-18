@@ -19,6 +19,20 @@ The latest version of the extension can be found in the releases
 
 ---
 
+# Production Backend
+
+The EcoLens backend is currently hosted and available at:
+
+**https://lifehack-2025-production.up.railway.app**
+
+You can use this hosted backend instead of running the backend locally. To configure the frontend to use the production backend, set your environment variable to:
+
+```bash
+VITE_API_BASE_URL=https://lifehack-2025-production.up.railway.app
+```
+
+---
+
 # Instructions for running the project locally
 
 ## Prerequisites

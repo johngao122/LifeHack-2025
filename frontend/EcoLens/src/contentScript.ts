@@ -1274,7 +1274,16 @@ class ProductScraper {
                         );
                     }
 
-                    const rawProductData = await productResponse.json();
+                    const rawProductDataArray = await productResponse.json();
+
+                    if (
+                        !rawProductDataArray ||
+                        rawProductDataArray.length === 0
+                    ) {
+                        throw new Error("No product data received");
+                    }
+
+                    const rawProductData = rawProductDataArray[0];
 
                     const productData = {
                         id: rawProductData.id,
