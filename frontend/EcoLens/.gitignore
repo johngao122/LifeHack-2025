@@ -27,4 +27,6 @@ dist-ssr
 *.crx
 
 *.env
+*.zip
+
 
