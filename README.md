@@ -44,22 +44,22 @@ Before setting up EcoLens, make sure you have the following installed:
 
 There are 2 ways to run the frontend.
 
-### Method 1: Install Release Extension (CRX)
+### Method 1: Install Release Extension (ZIP)
 
 **Quick setup using the compiled extension file:**
 
-1. **Download the CRX file** from releases
+1. **Download the ZIP file** from releases
 
 2. **Install in Chrome**
     - Open Chrome and go to `chrome://extensions/`
 
 ![image](https://github.com/user-attachments/assets/47bd6459-0186-4d7c-9263-3747b53a833f)
 
--   Enable "Developer mode" (toggle in top right)
+-   Enable "Developer mode" (toggle in top right)(**MUST DO**)
 
 ![Screenshot 2025-06-18 at 2 47 42 AM](https://github.com/user-attachments/assets/6198e2f6-0b06-4859-aa1c-2aea95b6f64b)
 
--   Drag and drop the `dist.crx` file into the extensions page
+-   Drag and drop the `dist.zip` file into the extensions page
 -   Click "Add extension" when prompted
 
 ![image](https://github.com/user-attachments/assets/749b47b6-54bf-4ae6-8956-2a030a027586)
