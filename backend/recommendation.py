@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 USER_AGENT = "EcoLens/1.0 (ecolens@example.com)"
-OPENFOODFACTS_API_V2 = "https://world.openfoodfacts.net/api/v2/search"
+OPENFOODFACTS_API_CGI = "https://world.openfoodfacts.net/cgi/search.pl"
 
 
 def fetch_products_by_category(
@@ -37,17 +37,20 @@ def fetch_products_by_category(
         logger.info(f"Searching for category: '{category}' -> '{final_category}'")
 
         params = {
-            "categories_tags": final_category,
+            "action": "process",
+            "json": "1",
+            "tagtype_0": "categories",
+            "tag_contains_0": "contains",
+            "tag_0": final_category,
             "page_size": page_size,
             "fields": "product_name,ecoscore_score,ecoscore_grade",
-            "lc": "en",
         }
 
         headers = {"User-Agent": USER_AGENT}
 
-        logger.info(f"Making request to: {OPENFOODFACTS_API_V2} with params: {params}")
+        logger.info(f"Making request to: {OPENFOODFACTS_API_CGI} with params: {params}")
 
-        response = requests.get(OPENFOODFACTS_API_V2, params=params, headers=headers)
+        response = requests.get(OPENFOODFACTS_API_CGI, params=params, headers=headers)
         response.raise_for_status()
 
         data = response.json()
@@ -57,11 +60,30 @@ def fetch_products_by_category(
             f"OpenFoodFacts returned {len(products)} products for category '{final_category}'"
         )
 
+        # Debug: Log the first product to see what fields are available
+        if products:
+            logger.info(f"Sample product fields: {list(products[0].keys())}")
+            logger.info(f"Sample product data: {products[0]}")
+
         valid_products = []
-        for product in products:
-            ecoscore = product.get("ecoscore_score")
-            name = product.get("product_name")
-            ecoscore_grade = product.get("ecoscore_grade")
+        for i, product in enumerate(products):
+            # Try different possible field names
+            ecoscore = product.get("ecoscore_score") or product.get(
+                "ecoscore_data", {}
+            ).get("score")
+            name = (
+                product.get("product_name")
+                or product.get("product_name_en")
+                or product.get("generic_name")
+                or product.get("generic_name_en")
+            )
+            ecoscore_grade = product.get("ecoscore_grade") or product.get(
+                "ecoscore_data", {}
+            ).get("grade")
+
+            logger.debug(
+                f"Product {i}: name='{name}', ecoscore={ecoscore}, grade={ecoscore_grade}"
+            )
 
             if name:
 
