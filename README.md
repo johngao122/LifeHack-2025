@@ -15,6 +15,8 @@ It uses the OpenFoodFacts API and database for the relevant sustainability data.
 
 The latest version of the extension can be found in the releases
 
+NOTE: Backend has been **shut down** as we do not have infinite budget. Feel free to deploy the backend on your own though :)
+
 [![Latest Release](https://img.shields.io/github/v/release/johngao122/LifeHack-2025)](https://github.com/johngao122/LifeHack-2025/releases/latest)
 
 ---
