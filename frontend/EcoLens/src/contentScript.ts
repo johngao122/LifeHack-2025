@@ -9,6 +9,9 @@ let POPUP_SHOWN_FOR_URL = new Set<string>();
 let IS_PROCESSING = false;
 let AUTO_POPUP_ENABLED = true;
 
+const ANALYSIS_COOLDOWN_MS = 30000;
+const LAST_ANALYSIS_AT = new Map<string, number>();
+
 interface ProductInfo {
     name: string;
     cleanedName: string;
@@ -855,8 +858,15 @@ const checkForProducts = async (currentUrl: string, isRetry = false) => {
         return;
     }
 
+    const lastAt = LAST_ANALYSIS_AT.get(currentUrl) || 0;
+    const now = Date.now();
+    if (now - lastAt < ANALYSIS_COOLDOWN_MS) {
+        return;
+    }
+
     POPUP_SHOWN_FOR_URL.add(currentUrl);
     IS_PROCESSING = true;
+    LAST_ANALYSIS_AT.set(currentUrl, now);
 
     const scraper = new ProductScraper();
     if (scraper.isFoodPage()) {
@@ -906,7 +916,6 @@ const checkForProducts = async (currentUrl: string, isRetry = false) => {
                 }, 2000);
                 return;
             } else if (!isRetry && products.length === 0) {
-                POPUP_SHOWN_FOR_URL.delete(currentUrl);
             }
         } catch (screenshotError) {
             console.warn(
