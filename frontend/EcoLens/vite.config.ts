@@ -19,23 +19,35 @@ export default defineConfig({
                 contentScript: "./src/contentScript.ts",
                 background: "./src/background.ts",
             },
-            output: {
-                entryFileNames: (chunkInfo) => {
-                    if (chunkInfo.name === "contentScript") {
-                        return "contentScript.js";
-                    } else if (chunkInfo.name === "background") {
-                        return "background.js";
-                    }
-                    return "[name]-[hash].js";
+            output: [
+                // HTML entries (main popup and report page)
+                {
+                    entryFileNames: (chunkInfo) => {
+                        if (chunkInfo.name === "contentScript") {
+                            return "contentScript.js";
+                        } else if (chunkInfo.name === "background") {
+                            return "background.js";
+                        }
+                        return "[name]-[hash].js";
+                    },
+                    // Less aggressive minification to avoid conflicts
+                    compact: false,
+                    // Ensure ES modules format for Chrome extension scripts
+                    format: "es",
                 },
-                // Less aggressive minification to avoid conflicts
-                compact: false,
+            ],
+            external: (id) => {
+                // Don't bundle Chrome extension APIs
+                return id.startsWith('chrome-extension://') || id === 'chrome';
             },
         },
     },
     esbuild: {
         // Keep class and function names to avoid variable conflicts
         keepNames: true,
+        // Ensure ES module target
+        target: 'es2020',
+        format: 'esm',
     },
     define: {
         __API_BASE_URL__: JSON.stringify(process.env.VITE_API_BASE_URL),

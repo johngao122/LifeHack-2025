@@ -449,3 +449,76 @@ export const getRecommendations = async (
         count: formattedRecommendations.length,
     };
 };
+
+export interface ScreenshotAnalysisResult {
+    products_found: Array<{
+        name: string;
+        description?: string;
+        confidence: number;
+        category?: string;
+        price?: string;
+        brand?: string;
+    }>;
+    page_type: string;
+    is_food_related: boolean;
+    url_analysis?: string;
+    // New structured analysis fields
+    url_analysis_structured?: {
+        patterns_found: string[];
+        confidence: number;
+        reasoning: string;
+    };
+    visual_analysis?: {
+        elements_found: string[];
+        layout_type: string;
+        confidence: number;
+        reasoning: string;
+    };
+    merged_decision?: {
+        final_confidence: number;
+        page_classification: string;
+        reasoning: string;
+    };
+    raw_response?: string;
+    error?: string;
+}
+
+export interface ScreenshotAnalysisResponse {
+    success: boolean;
+    analysis: ScreenshotAnalysisResult;
+    timestamp: string;
+}
+
+/**
+ * Analyzes a screenshot using OpenAI Vision API to detect food products
+ * @param screenshotData - Base64 encoded screenshot data
+ * @param pageUrl - Optional URL of the page for context
+ * @returns Analysis result with detected products
+ */
+export const analyzeScreenshot = async (
+    screenshotData: string,
+    pageUrl: string = ""
+): Promise<ScreenshotAnalysisResponse> => {
+    const response = await fetch(`${API_BASE_URL}/analyze_screenshot`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            screenshot_data: screenshotData,
+            page_url: pageUrl
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Screenshot analysis failed: ${response.status}`);
+    }
+
+    const result = (await response.json()) as ScreenshotAnalysisResponse;
+    
+    if (!result.success) {
+        throw new Error('Screenshot analysis was unsuccessful');
+    }
+
+    return result;
+};

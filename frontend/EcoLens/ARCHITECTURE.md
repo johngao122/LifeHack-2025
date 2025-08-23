@@ -46,14 +46,13 @@ EcoLens is a browser extension built with React 19, TypeScript, and Tailwind CSS
 
 -   **Purpose**: Product detection and user interaction on web pages
 -   **Responsibilities**:
-    -   Multi-strategy product extraction
+    -   Screenshot-based product analysis using AI
     -   Food page detection via fuzzy matching
     -   Dynamic UI injection (popups, notifications)
     -   Product validation and editing interfaces
--   **Detection Strategies**:
-    -   JSON-LD structured data (highest confidence)
-    -   Meta tag extraction (fallback)
-    -   DOM selector matching (lowest confidence)
+-   **Detection Strategy**:
+    -   Screenshot analysis with GPT-4 Vision (primary method)
+    -   Manual search via popup interface (when automatic detection fails)
 
 ### 3. Background Service Worker (`src/background.ts`)
 
@@ -84,11 +83,12 @@ EcoLens is a browser extension built with React 19, TypeScript, and Tailwind CSS
 
 ### Automatic Detection Flow
 
-1. Content script scans page for products
-2. Food page detection via `fuzzyMatcher.ts`
-3. Multi-strategy product extraction
+1. Content script detects food pages via `fuzzyMatcher.ts`
+2. Screenshot capture and AI analysis using GPT-4 Vision
+3. Product extraction from screenshot analysis
 4. User validation popup if products found
 5. API analysis and report generation on user confirmation
+6. If screenshot analysis fails, users can search manually via popup
 
 ## Utility Modules
 
