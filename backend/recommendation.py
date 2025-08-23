@@ -1,15 +1,17 @@
+import os
 import requests
 from typing import List, Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "EcoLens/1.0 (ecolens@example.com)"
-OPENFOODFACTS_API_CGI = "https://world.openfoodfacts.net/cgi/search.pl"
+USER_AGENT = os.getenv("USER_AGENT")
+OPENFOODFACTS_API_CGI = os.getenv("OPENFOODFACTS_API_URL")
+DEFAULT_PAGE_SIZE = int(os.getenv("DEFAULT_PAGE_SIZE"))
 
 
 def fetch_products_by_category(
-    category: str, page_size: int = 20
+    category: str, page_size: int = None
 ) -> List[Dict[str, Any]]:
     """
     Fetch products from OpenFoodFacts API for a specific category.
@@ -34,6 +36,9 @@ def fetch_products_by_category(
 
         final_category = category_mappings.get(formatted_category, formatted_category)
 
+        if page_size is None:
+            page_size = DEFAULT_PAGE_SIZE
+            
         logger.info(f"Searching for category: '{category}' -> '{final_category}'")
 
         params = {
@@ -60,14 +65,14 @@ def fetch_products_by_category(
             f"OpenFoodFacts returned {len(products)} products for category '{final_category}'"
         )
 
-        # Debug: Log the first product to see what fields are available
+        
         if products:
             logger.info(f"Sample product fields: {list(products[0].keys())}")
             logger.info(f"Sample product data: {products[0]}")
 
         valid_products = []
         for i, product in enumerate(products):
-            # Try different possible field names
+            
             ecoscore = product.get("ecoscore_score") or product.get(
                 "ecoscore_data", {}
             ).get("score")

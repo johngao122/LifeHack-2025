@@ -19,6 +19,16 @@ from recommendation import aggregate_and_rank_products
 from processing import transform_single_product, select_best_product
 
 
+DATABASE_URL = os.getenv(
+    "DATABASE_URL"
+)
+PORT = int(os.getenv("PORT"))
+HOST = os.getenv("HOST")
+OPENFOODFACTS_API_URL = os.getenv("OPENFOODFACTS_API_URL")
+USER_AGENT = os.getenv("USER_AGENT")
+CORS_ORIGINS = os.getenv("CORS_ORIGINS").split(",")
+
+
 class ProductRequest(BaseModel):
     product_name: str
 
@@ -46,14 +56,8 @@ class Product(SQLModel, table=True):
     labels: str | None = Field(default=None)
 
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "mysql+pymysql://ecolens:password@localhost:3333/ecolens"
-)
-PORT = int(os.getenv("PORT", 8000))
 
 
-if DATABASE_URL.startswith("mysql://"):
-    DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
 
 engine = create_engine(DATABASE_URL)
 
@@ -73,7 +77,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -126,9 +130,9 @@ def fetch_product(request: ProductRequest, background_tasks: BackgroundTasks):
                 p.environmental_score_data = json.loads(p.environmental_score_data)
             return products
 
-    url = f"https://world.openfoodfacts.net/cgi/search.pl?search_terms={product_name_encoded}&search_simple=1&json=1"
+    url = f"{OPENFOODFACTS_API_URL}?search_terms={product_name_encoded}&search_simple=1&json=1"
     response = requests.get(
-        url, headers={"User-Agent": "EcoLens/1.0 (ecolens@example.com)"}
+        url, headers={"User-Agent": USER_AGENT}
     )
     if response.status_code != 200:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -180,4 +184,4 @@ def get_recommendations(
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True, log_level="info")
+    uvicorn.run("main:app", host=HOST, port=PORT, reload=True, log_level="info")
