@@ -58,6 +58,55 @@
 
 import { isFoodPage } from "./utils/fuzzyMatcher.js";
 
+async function cleanViaBackground(raw: string): Promise<string> {
+    const res = await chrome.runtime.sendMessage({
+        action: "cleanProductName",
+        raw,
+    });
+    if (!res?.ok) throw new Error(res?.error || "clean failed");
+    return res.cleaned;
+}
+
+// Analyze screenshot via background service worker (delegates all heavy lifting)
+async function analyzeInBackground(
+    base64Data: string,
+    pageUrl: string
+): Promise<{
+    products: Array<{
+        name: string;
+        cleanedName?: string;
+        confidence: number;
+        source?: string;
+    }>;
+    ok: boolean;
+    error?: string;
+}> {
+    const res = await chrome.runtime.sendMessage({
+        action: "analyzeScreenshot",
+        base64Data,
+        pageUrl,
+    });
+    if (!res) {
+        return {
+            ok: false,
+            error: "No response from background",
+            products: [],
+        };
+    }
+    // Expect shape: { ok: boolean, products?: [...], error?: string }
+    if (res.ok === false) {
+        return {
+            ok: false,
+            error: res.error || "Background analysis failed",
+            products: [],
+        };
+    }
+    return {
+        ok: true,
+        products: Array.isArray(res.products) ? res.products : [],
+    };
+}
+
 const ScreenshotMessages = {
     CAPTURE_SCREENSHOT: "captureScreenshot",
     SCREENSHOT_RESULT: "screenshotResult",
@@ -69,181 +118,6 @@ interface ProductInfo {
     cleanedName: string;
     confidence: number;
     source: string;
-}
-
-function cleanProductName(rawName: string): string {
-    if (!rawName) return "";
-
-    let cleaned = rawName;
-
-    cleaned = cleaned
-
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
-
-        .replace(
-            /\b(amazon|walmart|target|shopee|lazada|fair\s*price|ntuc|cold\s*storage|giant|carrefour|tesco|sainsbury|asda|kroger|safeway)\b/gi,
-            ""
-        )
-        .replace(/\b(com|www|net|org|store|shop|market)\b/gi, "")
-
-        .replace(
-            /\b(grocery|food|gourmet|artisan|premium|quality|grade|choice|select|prime|deluxe|luxury)\b/gi,
-            ""
-        )
-        .replace(
-            /\b(homemade|handmade|fresh|natural|organic|local|imported|authentic|traditional)\b/gi,
-            ""
-        )
-
-        .replace(
-            /\b\d+[\s-]?(g|kg|ml|l|oz|lb|lbs|pcs|pc|pack|ct|count|set|serving|servings|pieces?)\b/gi,
-            ""
-        )
-
-        .replace(/\d+%/g, "")
-
-        .replace(
-            /\b(size|small|medium|large|xl|xxl|s|m|l)[\s:]*[a-z0-9]*\b/gi,
-            ""
-        )
-
-        .replace(/\b(color|colour)[\s:]*[a-z]+\b/gi, "")
-
-        .replace(/\b(model|version|v\.?)\s*[a-z0-9\-_.]+/gi, "")
-
-        .replace(
-            /\b(new|sale|hot|best|top|popular|featured|limited|special|exclusive|signature|classic|original)\b/gi,
-            ""
-        )
-
-        .replace(
-            /\b(raw|cooked|baked|fried|grilled|roasted|steamed|boiled|smoked|cured)\b/gi,
-            ""
-        )
-
-        .replace(
-            /\b(gluten-free|dairy-free|sugar-free|fat-free|low-fat|low-sodium|low-sugar|low-calorie)\b/gi,
-            ""
-        )
-        .replace(
-            /\b(reduced|zero|no|less)[\s-]+(fat|sodium|sugar|calories?|carbs?)\b/gi,
-            ""
-        )
-
-        .replace(
-            /\b(calories?|protein|carbs?|carbohydrates?|fiber|fibre|vitamin|mineral|supplement)\b/gi,
-            ""
-        )
-
-        .replace(
-            /\b(shipping|delivery|return|warranty|guarantee|add\s+to\s+cart|buy\s+now)\b/gi,
-            ""
-        )
-
-        .replace(
-            /\b(country|place|origin|dietary|halal|kosher|vegan|vegetarian)\b/gi,
-            ""
-        )
-
-        .replace(/\b(the|a|an)\b/gi, "")
-
-        .replace(/[^\w\s&-]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-    const words = cleaned.split(/\s+/).filter((word: string) => {
-        const lowerWord = word.toLowerCase();
-
-        const blacklistWords = [
-            "and",
-            "or",
-            "of",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "from",
-            "with",
-            "by",
-            "type",
-            "style",
-            "brand",
-            "kind",
-            "sort",
-            "item",
-            "product",
-            "goods",
-            "foods",
-            "food",
-            "grocery",
-            "gourmet",
-            "premium",
-            "quality",
-            "grade",
-            "fresh",
-            "natural",
-            "organic",
-            "local",
-            "imported",
-            "authentic",
-            "traditional",
-            "homemade",
-            "handmade",
-            "artisan",
-            "signature",
-            "classic",
-            "original",
-            "best",
-            "top",
-            "choice",
-            "select",
-            "prime",
-            "deluxe",
-            "luxury",
-            "frozen",
-            "canned",
-            "dried",
-            "pack",
-            "package",
-            "size",
-            "large",
-            "medium",
-            "small",
-            "mini",
-            "jumbo",
-            "family",
-            "bulk",
-            "value",
-            "economy",
-        ];
-
-        return (
-            word.length > 1 &&
-            !/^\d+$/.test(word) &&
-            !blacklistWords.includes(lowerWord)
-        );
-    });
-
-    cleaned = words.join(" ");
-
-    cleaned = cleaned
-        .replace(/\bnutella\b/gi, "Nutella")
-        .replace(/\bhazelnut\b/gi, "Hazelnut")
-        .replace(/\bchocolate\b/gi, "Chocolate")
-        .replace(/\bspread\b/gi, "Spread");
-
-    const result = cleaned
-        .split(" ")
-        .filter((word: string) => word.length > 0)
-        .map((word: string) => {
-            if (/^[A-Z]/.test(word)) return word;
-            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-        })
-        .join(" ");
-
-    return result;
 }
 
 class ProductScraper {
@@ -429,202 +303,50 @@ class ProductScraper {
         base64Data: string,
         pageUrl: string
     ): Promise<ProductInfo[]> {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-        console.log(
-            "[EcoLens] Starting API analysis with base URL:",
-            apiBaseUrl
-        );
+        console.log("[EcoLens] Starting analysis via background worker");
 
-        if (!apiBaseUrl) {
-            const error =
-                "VITE_API_BASE_URL environment variable not configured";
-            console.error("[EcoLens]", error);
-            throw new Error(error);
-        }
-
+        // Delegate heavy lifting (network + cleaning) to background service worker
         try {
-            console.log(
-                "[EcoLens] Sending POST request to /analyze_screenshot"
-            );
-            console.log("[EcoLens] Request payload size:", {
-                base64DataLength: base64Data.length,
-                pageUrl: pageUrl,
-                payloadSize: JSON.stringify({
-                    screenshot_data: base64Data,
-                    page_url: pageUrl,
-                }).length,
-            });
+            const bg = await analyzeInBackground(base64Data, pageUrl);
 
-            const response = await fetch(`${apiBaseUrl}/analyze_screenshot`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    screenshot_data: base64Data,
-                    page_url: pageUrl,
-                }),
-            });
+            if (!bg.ok) {
+                const errMsg = bg.error || "Unknown background error";
+                console.error(
+                    "[EcoLens] Background analysis reported failure:",
+                    errMsg
+                );
+                throw new Error(errMsg);
+            }
 
-            console.log(
-                "[EcoLens] API response status:",
-                response.status,
-                response.statusText
-            );
-
-            if (!response.ok) {
-                let errorDetails = "";
+            // Build ProductInfo[]; if background didn't provide cleanedName, fall back to background cleaner RPC
+            const products: ProductInfo[] = [];
+            for (const p of bg.products) {
                 try {
-                    const errorBody = await response.text();
-                    console.error(
-                        "[EcoLens] API error response body:",
-                        errorBody
-                    );
-                    errorDetails = errorBody ? ` - ${errorBody}` : "";
+                    const cleaned =
+                        p.cleanedName ?? (await cleanViaBackground(p.name));
+                    products.push({
+                        name: p.name,
+                        cleanedName: cleaned,
+                        confidence: p.confidence,
+                        source: p.source || "ai-screenshot",
+                    });
                 } catch (e) {
                     console.warn(
-                        "[EcoLens] Could not read error response body"
+                        "[EcoLens] Cleaning failed for product, skipping:",
+                        p?.name,
+                        e
                     );
                 }
-                throw new Error(
-                    `API request failed with status ${response.status}: ${response.statusText}${errorDetails}`
-                );
             }
 
-            const result = await response.json();
-            console.log("[EcoLens] API response parsed successfully:", {
-                success: result.success,
-                hasAnalysis: !!result.analysis,
-                analysisKeys: result.analysis
-                    ? Object.keys(result.analysis)
-                    : [],
-            });
-
-            if (!result.success) {
-                const error = `API returned success=false: ${
-                    result.error || "No error message provided"
-                }`;
-                console.error("[EcoLens]", error);
-                throw new Error(error);
-            }
-
-            if (!result.analysis) {
-                const error = "API response missing analysis field";
-                console.error("[EcoLens]", error, "Full result:", result);
-                throw new Error(error);
-            }
-
-            const products: ProductInfo[] = [];
-            const analysis = result.analysis;
-
-            console.log("[EcoLens] Processing API analysis:", {
-                pageType: analysis.page_type,
-                isFoodRelated: analysis.is_food_related,
-                productsFound: analysis.products_found?.length || 0,
-                urlAnalysis: analysis.url_analysis,
-            });
-
-            if (analysis.url_analysis_structured) {
-                console.log("[EcoLens] Structured URL Analysis:", {
-                    patterns: analysis.url_analysis_structured.patterns_found,
-                    confidence: analysis.url_analysis_structured.confidence,
-                    reasoning: analysis.url_analysis_structured.reasoning,
-                });
-            }
-
-            if (analysis.visual_analysis) {
-                console.log("[EcoLens] Visual Analysis:", {
-                    elements: analysis.visual_analysis.elements_found,
-                    layout: analysis.visual_analysis.layout_type,
-                    confidence: analysis.visual_analysis.confidence,
-                    reasoning: analysis.visual_analysis.reasoning,
-                });
-            }
-
-            if (analysis.merged_decision) {
-                console.log("[EcoLens] Merged Decision:", {
-                    classification:
-                        analysis.merged_decision.page_classification,
-                    confidence: analysis.merged_decision.final_confidence,
-                    reasoning: analysis.merged_decision.reasoning,
-                });
-            }
-
-            if (
-                analysis.page_type === "search_results" ||
-                analysis.page_type === "category_listing"
-            ) {
-                console.log(
-                    `[EcoLens] Detected ${analysis.page_type} page - skipping product analysis`
-                );
-                if (analysis.url_analysis) {
-                    console.log(
-                        `[EcoLens] URL Analysis: ${analysis.url_analysis}`
-                    );
-                }
-                return products;
-            }
-
-            if (analysis.products_found && analysis.products_found.length > 0) {
-                console.log(
-                    "[EcoLens] Found products in analysis:",
-                    analysis.products_found
-                );
-
-                for (const product of analysis.products_found) {
-                    console.log("[EcoLens] Processing product:", {
-                        name: product.name,
-                        confidence: product.confidence,
-                        brand: product.brand,
-                        category: product.category,
-                    });
-
-                    if (product.confidence > 0.7) {
-                        const productInfo = {
-                            name: product.name,
-                            cleanedName: cleanProductName(product.name),
-                            confidence: product.confidence,
-                            source: `ai-screenshot${
-                                product.brand ? ` (${product.brand})` : ""
-                            }`,
-                        };
-                        products.push(productInfo);
-                        console.log(
-                            "[EcoLens] Added high-confidence product:",
-                            productInfo
-                        );
-                    } else {
-                        console.log(
-                            "[EcoLens] Skipped low-confidence product:",
-                            product.name,
-                            "confidence:",
-                            product.confidence
-                        );
-                    }
-                }
-            } else {
-                console.log("[EcoLens] No products found in API analysis");
-            }
-
-            console.log("[EcoLens] Final products array:", products);
+            console.log(
+                "[EcoLens] Background analysis completed, products found:",
+                products.length
+            );
             return products;
         } catch (error) {
-            console.error(
-                "[EcoLens] Screenshot API analysis failed with error:",
-                error
-            );
-
-            if (error instanceof TypeError && error.message.includes("fetch")) {
-                console.error(
-                    "[EcoLens] Network error - is the backend server running at",
-                    apiBaseUrl + "?"
-                );
-                throw new Error(
-                    `Network error: Could not connect to backend server at ${apiBaseUrl}. Is the server running?`
-                );
-            }
-
-            throw error;
+            console.error("[EcoLens] Background analysis threw:", error);
+            throw error instanceof Error ? error : new Error(String(error));
         }
     }
 
@@ -686,7 +408,9 @@ class ProductScraper {
     public showAnalysisLoadingPopup(): void {
         try {
             // Remove any existing loading popup
-            const existingLoading = document.getElementById(this.loadingPopupId);
+            const existingLoading = document.getElementById(
+                this.loadingPopupId
+            );
             if (existingLoading) {
                 existingLoading.remove();
             }
@@ -694,7 +418,7 @@ class ProductScraper {
             // Create loading popup with direct styling (like showAnalysisResultMessage)
             const loadingPopup = document.createElement("div");
             loadingPopup.id = this.loadingPopupId;
-            
+
             // Apply styles directly to container div
             const style = loadingPopup.style;
             style.position = "fixed";
@@ -709,7 +433,7 @@ class ProductScraper {
             style.maxWidth = "300px";
             style.fontFamily = "system-ui, sans-serif";
             style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-            style.opacity = "0";  // Start invisible
+            style.opacity = "0"; // Start invisible
             style.transition = "opacity 0.3s ease";
             style.pointerEvents = "none";
             style.display = "flex";
@@ -746,7 +470,6 @@ class ProductScraper {
             setTimeout(() => {
                 this.hideAnalysisLoadingPopup();
             }, 15000);
-
         } catch (error) {
             console.error("[EcoLens] Error showing loading popup:", error);
         }
@@ -2043,4 +1766,4 @@ if (document.readyState === "loading") {
 setTimeout(initializeEcoLens, 3000);
 
 export type { ProductInfo };
-export { ProductScraper, cleanProductName };
+export { ProductScraper };
