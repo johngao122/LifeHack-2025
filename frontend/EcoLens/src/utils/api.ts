@@ -506,7 +506,7 @@ export const analyzeScreenshot = async (
         },
         body: JSON.stringify({
             screenshot_data: screenshotData,
-            page_url: pageUrl
+            page_url: pageUrl,
         }),
     });
 
@@ -515,9 +515,9 @@ export const analyzeScreenshot = async (
     }
 
     const result = (await response.json()) as ScreenshotAnalysisResponse;
-    
+
     if (!result.success) {
-        throw new Error('Screenshot analysis was unsuccessful');
+        throw new Error("Screenshot analysis was unsuccessful");
     }
 
     return result;

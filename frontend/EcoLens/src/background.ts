@@ -26,6 +26,7 @@ import {
     ScreenshotMessages,
     captureActiveTabScreenshot,
 } from "./utils/screenshot.js";
+import { getProductInfo, getRecommendations } from "./utils/api.js";
 
 function cleanProductName(rawName: string): string {
     if (!rawName) return "";
@@ -257,6 +258,54 @@ chrome.runtime.onMessage.addListener((req, _sender, sendResponse) => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.action === "fetchGreenScoreData") {
+        (async () => {
+            try {
+                const { product } = message as {
+                    product: {
+                        name: string;
+                        cleanedName: string;
+                        confidence?: number;
+                        source?: string;
+                    };
+                };
+
+                if (!product?.cleanedName) {
+                    throw new Error("Missing product.cleanedName");
+                }
+
+                // Fetch and format using shared API utils
+                const productData = await getProductInfo(product.cleanedName);
+                const topCategories = productData.categories.slice(0, 3);
+                const recommendations = await getRecommendations(topCategories);
+
+                await chrome.storage.local.set({
+                    detectedProduct: {
+                        name: product.cleanedName,
+                        originalName: product.name,
+                        confidence: product.confidence,
+                        source: product.source,
+                        timestamp: Date.now(),
+                    },
+                    productData,
+                    recommendations,
+                });
+
+                sendResponse({ ok: true });
+            } catch (e: any) {
+                const msg = e?.message || String(e);
+                sendResponse({
+                    ok: false,
+                    code: /No product data received|404/.test(msg)
+                        ? 404
+                        : undefined,
+                    error: msg,
+                });
+            }
+        })();
+        return true; // async
+    }
+
     if (message.action === "openReportTab") {
         const reportUrl = chrome.runtime.getURL("report.html");
         chrome.tabs

@@ -58,6 +58,37 @@
 
 import { isFoodPage } from "./utils/fuzzyMatcher.js";
 
+let __ecolensUiLoaded = false;
+async function ensureUIBundle(): Promise<void> {
+    if (__ecolensUiLoaded) return;
+    await new Promise<void>((resolve) => {
+        const s = document.createElement("script");
+        s.type = "module";
+        s.src = chrome.runtime.getURL("ui-inject.js");
+        s.onload = () => {
+            __ecolensUiLoaded = true;
+            try {
+                console.log("[EcoLens] UI bundle loaded", {
+                    hasEcoLensUI: Boolean((window as any).EcoLensUI),
+                });
+            } catch {}
+            resolve();
+        };
+        (document.head || document.documentElement).appendChild(s);
+    });
+}
+
+function createFixedTopRightMount(): HTMLDivElement {
+    const mount = document.createElement("div");
+    const style = mount.style;
+    style.position = "fixed";
+    style.top = "20px";
+    style.right = "20px";
+    style.zIndex = "2147483647";
+    document.body.appendChild(mount);
+    return mount;
+}
+
 async function cleanViaBackground(raw: string): Promise<string> {
     const res = await chrome.runtime.sendMessage({
         action: "cleanProductName",
@@ -67,7 +98,6 @@ async function cleanViaBackground(raw: string): Promise<string> {
     return res.cleaned;
 }
 
-// Analyze screenshot via background service worker (delegates all heavy lifting)
 async function analyzeInBackground(
     base64Data: string,
     pageUrl: string
@@ -93,7 +123,7 @@ async function analyzeInBackground(
             products: [],
         };
     }
-    // Expect shape: { ok: boolean, products?: [...], error?: string }
+
     if (res.ok === false) {
         return {
             ok: false,
@@ -121,6 +151,8 @@ interface ProductInfo {
 }
 
 class ProductScraper {
+    private loadingMountEl: HTMLDivElement | null = null;
+    private overlayMountEl: HTMLDivElement | null = null;
     async scrapeProductsWithScreenshot(): Promise<ProductInfo[]> {
         try {
             console.log(
@@ -305,7 +337,6 @@ class ProductScraper {
     ): Promise<ProductInfo[]> {
         console.log("[EcoLens] Starting analysis via background worker");
 
-        // Delegate heavy lifting (network + cleaning) to background service worker
         try {
             const bg = await analyzeInBackground(base64Data, pageUrl);
 
@@ -318,7 +349,6 @@ class ProductScraper {
                 throw new Error(errMsg);
             }
 
-            // Build ProductInfo[]; if background didn't provide cleanedName, fall back to background cleaner RPC
             const products: ProductInfo[] = [];
             for (const p of bg.products) {
                 try {
@@ -407,69 +437,34 @@ class ProductScraper {
 
     public showAnalysisLoadingPopup(): void {
         try {
-            // Remove any existing loading popup
-            const existingLoading = document.getElementById(
-                this.loadingPopupId
-            );
-            if (existingLoading) {
-                existingLoading.remove();
-            }
+            const existing = document.getElementById(this.loadingPopupId);
+            if (existing) existing.remove();
 
-            // Create loading popup with direct styling (like showAnalysisResultMessage)
-            const loadingPopup = document.createElement("div");
-            loadingPopup.id = this.loadingPopupId;
-
-            // Apply styles directly to container div
-            const style = loadingPopup.style;
-            style.position = "fixed";
-            style.top = "20px";
-            style.right = "20px";
-            style.background = "#059669";
-            style.color = "white";
-            style.padding = "12px 16px";
-            style.borderRadius = "8px";
-            style.fontSize = "14px";
-            style.zIndex = "2147483647";
-            style.maxWidth = "300px";
-            style.fontFamily = "system-ui, sans-serif";
-            style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-            style.opacity = "0"; // Start invisible
-            style.transition = "opacity 0.3s ease";
-            style.pointerEvents = "none";
-            style.display = "flex";
-            style.alignItems = "center";
-            style.gap = "8px";
-
-            // Add content with spinning icon
-            loadingPopup.innerHTML = `
-                <div style="animation: ecolens-spin 1s linear infinite; font-size: 16px;">🔍</div>
-                <span>Analyzing page...</span>
-            `;
-
-            // Add CSS animation if not already added
-            if (!document.getElementById("ecolens-loading-styles")) {
-                const styleEl = document.createElement("style");
-                styleEl.id = "ecolens-loading-styles";
-                styleEl.textContent = `
-                    @keyframes ecolens-spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                `;
-                document.head.appendChild(styleEl);
-            }
-
-            document.body.appendChild(loadingPopup);
-
-            // Fade in - now targeting the correct element
-            setTimeout(() => {
-                style.opacity = "1";
-            }, 100);
-
-            // Safety timeout - remove after 15 seconds
-            setTimeout(() => {
-                this.hideAnalysisLoadingPopup();
-            }, 15000);
+            ensureUIBundle()
+                .then(() => {
+                    const mount = createFixedTopRightMount();
+                    mount.id = this.loadingPopupId;
+                    try {
+                        window.postMessage(
+                            {
+                                source: "ecolens",
+                                channel: "ui",
+                                action: "mount",
+                                mountId: mount.id,
+                                component: "LoadingToast",
+                                props: {
+                                    text: "Analyzing page...",
+                                    timeoutMs: 15000,
+                                },
+                            },
+                            "*"
+                        );
+                    } catch {}
+                    this.loadingMountEl = mount;
+                })
+                .catch((e) =>
+                    console.warn("[EcoLens] UI bundle load failed", e)
+                );
         } catch (error) {
             console.error("[EcoLens] Error showing loading popup:", error);
         }
@@ -477,14 +472,23 @@ class ProductScraper {
 
     public hideAnalysisLoadingPopup(): void {
         try {
-            const loadingPopup = document.getElementById(this.loadingPopupId);
-            if (loadingPopup) {
-                loadingPopup.style.opacity = "0";
-                setTimeout(() => {
-                    if (loadingPopup.parentNode) {
-                        loadingPopup.parentNode.removeChild(loadingPopup);
-                    }
-                }, 300);
+            if (this.loadingMountEl) {
+                try {
+                    window.postMessage(
+                        {
+                            source: "ecolens",
+                            channel: "ui",
+                            action: "unmount",
+                            mountId: this.loadingPopupId,
+                        },
+                        "*"
+                    );
+                } catch {}
+                this.loadingMountEl.remove();
+                this.loadingMountEl = null;
+            } else {
+                const el = document.getElementById(this.loadingPopupId);
+                if (el) el.remove();
             }
         } catch (error) {
             console.error("[EcoLens] Error hiding loading popup:", error);
@@ -494,51 +498,41 @@ class ProductScraper {
     public showAnalysisResultMessage(type: "no-products" | "error"): void {
         try {
             this.hideAnalysisLoadingPopup();
-
-            const message =
-                type === "no-products"
-                    ? "No products detected"
-                    : "Something went wrong, try again later";
-
-            const icon = type === "no-products" ? "🤷" : "⚠️";
-            const backgroundColor =
-                type === "no-products" ? "#6b7280" : "#dc2626";
-            const duration = type === "no-products" ? 3000 : 4000;
-
-            const resultPopup = document.createElement("div");
-            resultPopup.textContent = `${icon} EcoLens: ${message}`;
-
-            const style = resultPopup.style;
-            style.position = "fixed";
-            style.top = "20px";
-            style.right = "20px";
-            style.background = backgroundColor;
-            style.color = "white";
-            style.padding = "12px 16px";
-            style.borderRadius = "8px";
-            style.fontSize = "14px";
-            style.zIndex = "2147483647";
-            style.maxWidth = "300px";
-            style.fontFamily = "system-ui, sans-serif";
-            style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-            style.opacity = "0";
-            style.transition = "opacity 0.3s ease";
-            style.pointerEvents = "none";
-
-            document.body.appendChild(resultPopup);
-
-            setTimeout(() => {
-                style.opacity = "1";
-            }, 100);
-
-            setTimeout(() => {
-                style.opacity = "0";
-                setTimeout(() => {
-                    if (resultPopup.parentNode) {
-                        resultPopup.parentNode.removeChild(resultPopup);
-                    }
-                }, 300);
-            }, duration);
+            ensureUIBundle()
+                .then(() => {
+                    const mount = createFixedTopRightMount();
+                    const duration = type === "no-products" ? 3000 : 4000;
+                    try {
+                        window.postMessage(
+                            {
+                                source: "ecolens",
+                                channel: "ui",
+                                action: "mount",
+                                mountId: mount.id,
+                                component: "ResultToast",
+                                props: { type },
+                            },
+                            "*"
+                        );
+                    } catch {}
+                    setTimeout(() => {
+                        try {
+                            window.postMessage(
+                                {
+                                    source: "ecolens",
+                                    channel: "ui",
+                                    action: "unmount",
+                                    mountId: mount.id,
+                                },
+                                "*"
+                            );
+                        } catch {}
+                        mount.remove();
+                    }, duration);
+                })
+                .catch((e) =>
+                    console.warn("[EcoLens] UI bundle load failed", e)
+                );
         } catch (error) {
             console.error("[EcoLens] Error showing result message:", error);
         }
@@ -546,319 +540,143 @@ class ProductScraper {
 
     public showProductDetectedPopup(products: ProductInfo[]): void {
         try {
-            const existingPopup = document.getElementById(
-                "ecolens-product-popup"
-            );
-            if (existingPopup) {
-                existingPopup.remove();
-            }
+            ensureUIBundle()
+                .then(() => {
+                    try {
+                        const text = products?.[0]?.cleanedName || "Detected";
+                        const selectors = [
+                            "h1",
+                            "[data-testid='product-title']",
+                            ".product-title",
+                        ];
+                        for (const sel of selectors) {
+                            const el = document.querySelector(sel) as any;
+                            if (!el || el.__ecolensChipMounted) continue;
+                            const mount = document.createElement("span");
+                            mount.setAttribute(
+                                "data-ecolens-component",
+                                "ProductChip"
+                            );
+                            mount.setAttribute(
+                                "data-ecolens-props",
+                                JSON.stringify({ text })
+                            );
+                            el.insertAdjacentElement("afterend", mount);
+                            try {
+                                window.postMessage(
+                                    {
+                                        source: "ecolens",
+                                        channel: "ui",
+                                        action: "placeholders",
+                                    },
+                                    "*"
+                                );
+                            } catch {}
+                            el.__ecolensChipMounted = true;
+                            break;
+                        }
+                    } catch {}
 
-            const popup = document.createElement("div");
-            popup.id = "ecolens-product-popup";
-            popup.innerHTML = `
-                    <div id="ecolens-backdrop" style="
-                        position: fixed;
-                        inset: 0;
-                        background: rgba(0, 0, 0, 0.2);
-                        z-index: 2147483640;
-                    "></div>
-                    <div id="ecolens-popup" style="
-                        position: fixed;
-                        top: 16px;
-                        left: 50%;
-                        transform: translateX(-50%) scale(0.8);
-                        z-index: 2147483650;
-                        background: white;
-                        border-radius: 12px;
-                        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-                        border: 1px solid #e5e7eb;
-                        padding: 16px;
-                        min-width: 320px;
-                        max-width: 448px;
-                        font-family: system-ui, -apple-system, sans-serif;
-                        opacity: 0;
-                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                        cursor: pointer;
-                    ">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <div style="flex-shrink: 0;">
-                                <div id="ecolens-eye" style="
-                                    font-size: 24px;
-                                    animation: ecolens-wiggle 1.5s infinite;
-                                    animation-delay: 2s;
-                                ">👁️</div>
-                            </div>
-                            <div style="flex: 1;">
-                                <p style="
-                                    color: #047857;
-                                    font-weight: 600;
-                                    font-size: 14px;
-                                    margin: 0;
-                                ">Valid product${
-                                    products.length > 1 ? "s" : ""
-                                } detected</p>
-                                <p style="
-                                    color: #6b7280;
-                                    font-size: 12px;
-                                    margin: 4px 0 0 0;
-                                ">Curious about ${
-                                    products.length > 1
-                                        ? "these products'"
-                                        : "this product's"
-                                } green score?</p>
-                            </div>
-                            <button id="ecolens-close" style="
-                                color: #9ca3af;
-                                font-size: 20px;
-                                line-height: 1;
-                                background: none;
-                                border: none;
-                                cursor: pointer;
-                                padding: 0;
-                                width: 24px;
-                                height: 24px;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                transition: color 0.2s;
-                            ">×</button>
-                        </div>
-                        <div style="
-                            margin-top: 12px;
-                            padding-top: 12px;
-                            border-top: 1px solid #f3f4f6;
-                        ">
-                            <p style="
-                                font-size: 12px;
-                                color: #6b7280;
-                                text-align: center;
-                                margin: 0;
-                            ">Click to find out more</p>
-                        </div>
-                    </div>
-                `;
-
-            const style = document.createElement("style");
-            style.textContent = `
-                    @keyframes ecolens-wiggle {
-                        0%, 100% { transform: rotate(0deg); }
-                        25% { transform: rotate(10deg); }
-                        75% { transform: rotate(-10deg); }
+                    if (this.overlayMountEl) {
+                        try {
+                            if (this.overlayMountEl.id) {
+                                window.postMessage(
+                                    {
+                                        source: "ecolens",
+                                        channel: "ui",
+                                        action: "unmount",
+                                        mountId: this.overlayMountEl.id,
+                                    },
+                                    "*"
+                                );
+                            }
+                        } catch {}
+                        this.overlayMountEl.remove();
+                        this.overlayMountEl = null;
                     }
-                `;
-            document.head.appendChild(style);
+                    const mount = document.createElement("div");
+                    mount.id = `ecolens-mount-${Math.random()
+                        .toString(36)
+                        .slice(2)}`;
+                    document.body.appendChild(mount);
+                    this.overlayMountEl = mount;
+                    try {
+                        const onBridge = (e: MessageEvent) => {
+                            const data: any = (e as any).data;
+                            if (
+                                !data ||
+                                data.source !== "ecolens" ||
+                                data.channel !== "ui"
+                            )
+                                return;
+                            if (data.event === "validationYes") {
+                                window.removeEventListener("message", onBridge);
+                                try {
+                                    this.proceedWithGreenScore(data.product);
+                                } catch {}
+                            } else if (data.event === "validationEdit") {
+                            }
+                        };
+                        window.addEventListener("message", onBridge);
 
-            document.body.appendChild(popup);
-
-            setTimeout(() => {
-                const popupEl = document.getElementById("ecolens-popup");
-                if (popupEl) {
-                    popupEl.style.opacity = "1";
-                    popupEl.style.transform = "translateX(-50%) scale(1)";
-                }
-            }, 100);
-
-            const popupEl = document.getElementById("ecolens-popup");
-            if (popupEl) {
-                popupEl.addEventListener("mouseenter", () => {
-                    popupEl.style.transform = "translateX(-50%) scale(1.05)";
-                });
-                popupEl.addEventListener("mouseleave", () => {
-                    popupEl.style.transform = "translateX(-50%) scale(1)";
-                });
-            }
-
-            const closePopup = () => {
-                const popupToRemove = document.getElementById(
-                    "ecolens-product-popup"
+                        window.postMessage(
+                            {
+                                source: "ecolens",
+                                channel: "ui",
+                                action: "mount",
+                                mountId: mount.id,
+                                component: "DetectedPopup",
+                                props: {
+                                    products,
+                                },
+                            },
+                            "*"
+                        );
+                    } catch {}
+                })
+                .catch((e) =>
+                    console.warn("[EcoLens] UI bundle load failed", e)
                 );
-                if (popupToRemove) {
-                    const popupEl = document.getElementById("ecolens-popup");
-                    if (popupEl) {
-                        popupEl.style.opacity = "0";
-                        popupEl.style.transform = "translateX(-50%) scale(0.8)";
-                    }
-                    setTimeout(() => {
-                        popupToRemove.remove();
-                    }, 300);
-                }
-            };
-
-            document
-                .getElementById("ecolens-close")
-                ?.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    closePopup();
-                });
-
-            document
-                .getElementById("ecolens-backdrop")
-                ?.addEventListener("click", closePopup);
-
-            let autoCloseTimeout: NodeJS.Timeout;
-            let isInteracting = false;
-
-            const startAutoClose = () => {
-                if (!isInteracting) {
-                    autoCloseTimeout = setTimeout(closePopup, 8000);
-                }
-            };
-
-            const stopAutoClose = () => {
-                clearTimeout(autoCloseTimeout);
-            };
-
-            const setInteracting = (interacting: boolean) => {
-                isInteracting = interacting;
-                if (interacting) {
-                    stopAutoClose();
-                } else {
-                    startAutoClose();
-                }
-            };
-
-            startAutoClose();
-
-            popupEl?.addEventListener("mouseenter", () => setInteracting(true));
-            popupEl?.addEventListener("mouseleave", () =>
-                setInteracting(false)
-            );
-
-            popupEl?.addEventListener("click", (e) => {
-                e.stopPropagation();
-                const target = e.target as HTMLElement;
-                if (target?.id === "ecolens-close") {
-                    return;
-                }
-                setInteracting(true);
-                this.showProductValidation(products, () => setInteracting);
-            });
         } catch (error) {
             console.error("[EcoLens] Error showing product popup:", error);
         }
     }
 
-    public showProductValidation(
-        products: ProductInfo[],
-        setInteracting?: (interacting: boolean) => void
-    ): void {
+    public showProductValidation(products: ProductInfo[]): void {
         try {
-            const existingPopup = document.getElementById("ecolens-popup");
-            if (!existingPopup) {
-                console.warn(
-                    "[EcoLens] No existing popup found for validation"
+            ensureUIBundle()
+                .then(() => {
+                    if (!this.overlayMountEl) {
+                        this.overlayMountEl = document.createElement("div");
+                        document.body.appendChild(this.overlayMountEl);
+                    }
+                    const product = products[0];
+                    try {
+                        window.postMessage(
+                            {
+                                source: "ecolens",
+                                channel: "ui",
+                                action: "mount",
+                                mountId:
+                                    this.overlayMountEl.id ||
+                                    (this.overlayMountEl.id = `ecolens-mount-${Math.random()
+                                        .toString(36)
+                                        .slice(2)}`),
+                                component: "ValidationCard",
+                                props: {
+                                    product,
+                                    onYes: () =>
+                                        this.proceedWithGreenScore(product),
+                                    onEdit: () => {},
+                                },
+                            },
+                            "*"
+                        );
+                    } catch {}
+                })
+                .catch((e) =>
+                    console.warn("[EcoLens] UI bundle load failed", e)
                 );
-                return;
-            }
-
-            existingPopup.style.transform = "translateX(-50%) scale(0.95)";
-            existingPopup.style.opacity = "0.7";
-
-            setTimeout(() => {
-                existingPopup.innerHTML = `
-                        <div style="text-align: center;">
-                            <div style="font-size: 32px; margin-bottom: 16px;">🔍</div>
-                            <h3 style="
-                                color: #047857;
-                                font-weight: 600;
-                                font-size: 16px;
-                                margin: 0 0 12px 0;
-                            ">Product Detected</h3>
-                            <div style="
-                                background: #f3f4f6;
-                                border-radius: 8px;
-                                padding: 12px;
-                                margin: 12px 0;
-                                border-left: 4px solid #059669;
-                            ">
-                                <p style="
-                                    font-weight: 600;
-                                    font-size: 14px;
-                                    color: #1f2937;
-                                    margin: 0;
-                                ">${products[0].cleanedName}</p>
-                            </div>
-                            <p style="
-                                color: #374151;
-                                font-size: 14px;
-                                margin: 16px 0 8px 0;
-                                font-weight: 500;
-                            ">Is this product correct?</p>
-                            <div style="
-                                background: #fef3c7;
-                                border: 1px solid #f59e0b;
-                                border-radius: 6px;
-                                padding: 8px 12px;
-                                margin: 12px 0 16px 0;
-                            ">
-                                <p style="
-                                    font-size: 12px;
-                                    color: #92400e;
-                                    margin: 0;
-                                    font-weight: 500;
-                                ">💡 Tip: Try not to include quantities, sizes, or brand details</p>
-                            </div>
-                            <div style="display: flex; gap: 8px; justify-content: center;">
-                                <button id="ecolens-yes" style="
-                                    background: #059669;
-                                    color: white;
-                                    border: none;
-                                    border-radius: 6px;
-                                    padding: 8px 16px;
-                                    font-size: 14px;
-                                    font-weight: 500;
-                                    cursor: pointer;
-                                    transition: all 0.2s;
-                                ">✓ Yes, continue</button>
-                                <button id="ecolens-edit" style="
-                                    background: #6b7280;
-                                    color: white;
-                                    border: none;
-                                    border-radius: 6px;
-                                    padding: 8px 16px;
-                                    font-size: 14px;
-                                    font-weight: 500;
-                                    cursor: pointer;
-                                    transition: all 0.2s;
-                                ">✏️ Edit</button>
-                            </div>
-                        </div>
-                    `;
-
-                existingPopup.style.transform = "translateX(-50%) scale(1)";
-                existingPopup.style.opacity = "1";
-
-                const yesBtn = document.getElementById("ecolens-yes");
-                const editBtn = document.getElementById("ecolens-edit");
-
-                yesBtn?.addEventListener("mouseenter", () => {
-                    yesBtn.style.background = "#047857";
-                    yesBtn.style.transform = "scale(1.05)";
-                });
-                yesBtn?.addEventListener("mouseleave", () => {
-                    yesBtn.style.background = "#059669";
-                    yesBtn.style.transform = "scale(1)";
-                });
-
-                editBtn?.addEventListener("mouseenter", () => {
-                    editBtn.style.background = "#4b5563";
-                    editBtn.style.transform = "scale(1.05)";
-                });
-                editBtn?.addEventListener("mouseleave", () => {
-                    editBtn.style.background = "#6b7280";
-                    editBtn.style.transform = "scale(1)";
-                });
-
-                yesBtn?.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    this.proceedWithGreenScore(products[0]);
-                });
-
-                editBtn?.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    this.showProductEditForm(products[0], setInteracting);
-                });
-            }, 150);
         } catch (error) {
             console.error("[EcoLens] Error showing product validation:", error);
         }
@@ -901,517 +719,121 @@ class ProductScraper {
                 `;
                 document.head.appendChild(spinnerStyle);
 
-                const successPopup = document.createElement("div");
-                successPopup.innerHTML = `
-                        <div style="
-                            position: fixed;
-                            top: 20px;
-                            right: 20px;
-                            background: #059669;
-                            color: white;
-                            padding: 12px 16px;
-                            border-radius: 8px;
-                            font-size: 14px;
-                            z-index: 2147483647;
-                            font-family: system-ui, sans-serif;
-                            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                            animation: ecolens-slide-in 0.3s ease;
-                            display: flex;
-                            align-items: center;
-                        ">
-                            <div class="ecolens-spinner"></div>
-                            <span>🌱 Analyzing "${product.cleanedName}" Green Score...</span>
-                        </div>
-                    `;
-                document.body.appendChild(successPopup);
+                const analyzingMount = createFixedTopRightMount();
+                try {
+                    window.postMessage(
+                        {
+                            source: "ecolens",
+                            channel: "ui",
+                            action: "mountAnalyzing",
+                            mountId:
+                                analyzingMount.id ||
+                                (analyzingMount.id = `ecolens-mount-${Math.random()
+                                    .toString(36)
+                                    .slice(2)}`),
+                            props: { text: product.cleanedName },
+                        },
+                        "*"
+                    );
+                } catch {}
 
                 try {
-                    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-
-                    const productResponse = await fetch(
-                        `${apiBaseUrl}/product_info`,
-                        {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({
-                                product_name: product.cleanedName,
-                            }),
-                        }
-                    );
-
-                    if (!productResponse.ok) {
-                        throw new Error(
-                            `Product API request failed: ${productResponse.status}`
-                        );
-                    }
-
-                    const rawProductDataArray = await productResponse.json();
-
-                    if (
-                        !rawProductDataArray ||
-                        rawProductDataArray.length === 0
-                    ) {
-                        throw new Error("No product data received");
-                    }
-
-                    const rawProductData = rawProductDataArray[0];
-
-                    const productData = {
-                        id: rawProductData.id,
-                        name: rawProductData.name,
-                        environmentalScore:
-                            rawProductData.environmental_score_data
-                                .adjusted_score,
-                        grade: rawProductData.environmental_score_data.overall_grade.toUpperCase(),
-                        packagingScore:
-                            rawProductData.environmental_score_data
-                                .packaging_score,
-                        categories: rawProductData.categories,
-                        labels: rawProductData.labels,
-                        carbonFootprint: {
-                            totalCo2Per100g: Math.round(
-                                rawProductData.environmental_score_data
-                                    .agribalyse.co2_total * 100
-                            ),
-                            totalCo2PerKg: Math.round(
-                                rawProductData.environmental_score_data
-                                    .agribalyse.co2_total * 1000
-                            ),
-                            breakdown: {
-                                agriculture: {
-                                    value: rawProductData
-                                        .environmental_score_data.agribalyse
-                                        .co2_agriculture,
-                                    percentage:
-                                        Math.round(
-                                            (rawProductData
-                                                .environmental_score_data
-                                                .agribalyse.co2_agriculture /
-                                                rawProductData
-                                                    .environmental_score_data
-                                                    .agribalyse.co2_total) *
-                                                1000
-                                        ) / 10,
-                                },
-                                consumption: {
-                                    value: rawProductData
-                                        .environmental_score_data.agribalyse
-                                        .co2_consumption,
-                                    percentage:
-                                        Math.round(
-                                            (rawProductData
-                                                .environmental_score_data
-                                                .agribalyse.co2_consumption /
-                                                rawProductData
-                                                    .environmental_score_data
-                                                    .agribalyse.co2_total) *
-                                                1000
-                                        ) / 10,
-                                },
-                                distribution: {
-                                    value: rawProductData
-                                        .environmental_score_data.agribalyse
-                                        .co2_distribution,
-                                    percentage:
-                                        Math.round(
-                                            (rawProductData
-                                                .environmental_score_data
-                                                .agribalyse.co2_distribution /
-                                                rawProductData
-                                                    .environmental_score_data
-                                                    .agribalyse.co2_total) *
-                                                1000
-                                        ) / 10,
-                                },
-                                packaging: {
-                                    value: rawProductData
-                                        .environmental_score_data.agribalyse
-                                        .co2_packaging,
-                                    percentage:
-                                        Math.round(
-                                            (rawProductData
-                                                .environmental_score_data
-                                                .agribalyse.co2_packaging /
-                                                rawProductData
-                                                    .environmental_score_data
-                                                    .agribalyse.co2_total) *
-                                                1000
-                                        ) / 10,
-                                },
-                                processing: {
-                                    value: rawProductData
-                                        .environmental_score_data.agribalyse
-                                        .co2_processing,
-                                    percentage:
-                                        Math.round(
-                                            (rawProductData
-                                                .environmental_score_data
-                                                .agribalyse.co2_processing /
-                                                rawProductData
-                                                    .environmental_score_data
-                                                    .agribalyse.co2_total) *
-                                                1000
-                                        ) / 10,
-                                },
-                                transportation: {
-                                    value: rawProductData
-                                        .environmental_score_data.agribalyse
-                                        .co2_transportation,
-                                    percentage:
-                                        Math.round(
-                                            (rawProductData
-                                                .environmental_score_data
-                                                .agribalyse.co2_transportation /
-                                                rawProductData
-                                                    .environmental_score_data
-                                                    .agribalyse.co2_total) *
-                                                1000
-                                        ) / 10,
-                                },
-                            },
-                        },
-                        materialBreakdown: Object.entries(
-                            rawProductData.environmental_score_data
-                                .material_scores || {}
-                        ).map(([key, material]: [string, any]) => {
-                            const parseRecyclingCode = (code: string) => {
-                                const PLASTIC_CODES: Record<number, string> = {
-                                    1: "PET/PETE (Polyethylene Terephthalate)",
-                                    2: "HDPE (High-Density Polyethylene)",
-                                    3: "PVC (Polyvinyl Chloride)",
-                                    4: "LDPE (Low-Density Polyethylene)",
-                                    5: "PP (Polypropylene)",
-                                    6: "PS (Polystyrene)",
-                                    7: "Other Plastics",
-                                };
-
-                                const PAPER_CODES: Record<number, string> = {
-                                    20: "Corrugated Cardboard",
-                                    21: "Mixed Paper",
-                                    22: "Paper",
-                                    23: "Paperboard",
-                                    81: "Paper/Plastic Composite",
-                                    82: "Paper/Aluminum Composite",
-                                    83: "Paper/Tinplate Composite",
-                                    84: "Paper/Plastic/Aluminum Composite",
-                                    85: "Paper/Plastic/Aluminum/Tinplate Composite",
-                                };
-
-                                const GLASS_CODES: Record<number, string> = {
-                                    70: "Clear Glass",
-                                    71: "Green Glass",
-                                    72: "Brown Glass",
-                                };
-
-                                const METAL_CODES: Record<number, string> = {
-                                    40: "Steel",
-                                    41: "Aluminum",
-                                };
-
-                                const upperCode = code.toUpperCase();
-
-                                if (upperCode === "CLEAR_GLASS") {
-                                    return {
-                                        codeNumber: 70,
-                                        materialName: "Clear Glass",
-                                    };
-                                }
-                                if (upperCode === "GREEN_GLASS") {
-                                    return {
-                                        codeNumber: 71,
-                                        materialName: "Green Glass",
-                                    };
-                                }
-                                if (upperCode === "BROWN_GLASS") {
-                                    return {
-                                        codeNumber: 72,
-                                        materialName: "Brown Glass",
-                                    };
-                                }
-
-                                if (
-                                    upperCode.includes("PP_5") ||
-                                    upperCode.includes("POLYPROPYLENE")
-                                ) {
-                                    return {
-                                        codeNumber: 5,
-                                        materialName: "PP (Polypropylene)",
-                                    };
-                                }
-                                if (
-                                    upperCode.includes("PET") ||
-                                    upperCode.includes("PETE")
-                                ) {
-                                    return {
-                                        codeNumber: 1,
-                                        materialName:
-                                            "PET/PETE (Polyethylene Terephthalate)",
-                                    };
-                                }
-                                if (upperCode.includes("HDPE")) {
-                                    return {
-                                        codeNumber: 2,
-                                        materialName:
-                                            "HDPE (High-Density Polyethylene)",
-                                    };
-                                }
-                                if (upperCode.includes("PVC")) {
-                                    return {
-                                        codeNumber: 3,
-                                        materialName:
-                                            "PVC (Polyvinyl Chloride)",
-                                    };
-                                }
-                                if (upperCode.includes("LDPE")) {
-                                    return {
-                                        codeNumber: 4,
-                                        materialName:
-                                            "LDPE (Low-Density Polyethylene)",
-                                    };
-                                }
-                                if (
-                                    upperCode.includes("PS") ||
-                                    upperCode.includes("POLYSTYRENE")
-                                ) {
-                                    return {
-                                        codeNumber: 6,
-                                        materialName: "PS (Polystyrene)",
-                                    };
-                                }
-
-                                if (
-                                    upperCode.includes("CORRUGATED") &&
-                                    upperCode.includes("CARDBOARD")
-                                ) {
-                                    return {
-                                        codeNumber: 20,
-                                        materialName: "Corrugated Cardboard",
-                                    };
-                                }
-                                if (
-                                    upperCode.includes("NON_CORRUGATED") &&
-                                    upperCode.includes("CARDBOARD")
-                                ) {
-                                    return {
-                                        codeNumber: 21,
-                                        materialName:
-                                            "Non-Corrugated Cardboard",
-                                    };
-                                }
-                                if (
-                                    upperCode.includes("C_PAP") ||
-                                    upperCode.includes("PAP")
-                                ) {
-                                    if (upperCode.includes("82")) {
-                                        return {
-                                            codeNumber: 82,
-                                            materialName:
-                                                "Paper/Aluminum Composite",
-                                        };
-                                    }
-                                    if (upperCode.includes("81")) {
-                                        return {
-                                            codeNumber: 81,
-                                            materialName:
-                                                "Paper/Plastic Composite",
-                                        };
-                                    }
-                                    if (upperCode.includes("20")) {
-                                        return {
-                                            codeNumber: 20,
-                                            materialName:
-                                                "Corrugated Cardboard",
-                                        };
-                                    }
-                                    return {
-                                        codeNumber: 22,
-                                        materialName: "Paper",
-                                    };
-                                }
-
-                                if (
-                                    upperCode.includes("STEEL") ||
-                                    upperCode.includes("FE")
-                                ) {
-                                    return {
-                                        codeNumber: 40,
-                                        materialName: "Steel",
-                                    };
-                                }
-                                if (
-                                    upperCode.includes("ALUMINUM") ||
-                                    upperCode.includes("ALU")
-                                ) {
-                                    return {
-                                        codeNumber: 41,
-                                        materialName: "Aluminum",
-                                    };
-                                }
-
-                                const numberMatch = code.match(/(\d+)/);
-                                const codeNumber = numberMatch
-                                    ? parseInt(numberMatch[1])
-                                    : null;
-
-                                if (codeNumber) {
-                                    if (codeNumber >= 1 && codeNumber <= 7) {
-                                        return {
-                                            codeNumber,
-                                            materialName:
-                                                PLASTIC_CODES[codeNumber] ||
-                                                "Unknown Plastic",
-                                        };
-                                    }
-                                    if (codeNumber >= 20 && codeNumber <= 85) {
-                                        return {
-                                            codeNumber,
-                                            materialName:
-                                                PAPER_CODES[codeNumber] ||
-                                                "Unknown Paper Product",
-                                        };
-                                    }
-                                    if (codeNumber >= 70 && codeNumber <= 72) {
-                                        return {
-                                            codeNumber,
-                                            materialName:
-                                                GLASS_CODES[codeNumber] ||
-                                                "Clear Glass",
-                                        };
-                                    }
-                                    if (
-                                        codeNumber === 40 ||
-                                        codeNumber === 41
-                                    ) {
-                                        return {
-                                            codeNumber,
-                                            materialName:
-                                                METAL_CODES[codeNumber] ||
-                                                "Unknown Metal",
-                                        };
-                                    }
-                                }
-
-                                return {
-                                    codeNumber: null,
-                                    materialName: "Unknown Material",
-                                };
-                            };
-
-                            const { codeNumber, materialName } =
-                                parseRecyclingCode(key);
-
-                            return {
-                                key: key,
-                                codeNumber,
-                                materialName,
-                                material: material.material,
-                                score: material.environmental_score_material_score,
-                                shape: material.shape.replace("en:", ""),
-                                ratio: material.environmental_score_shape_ratio,
-                            };
-                        }),
-                    };
-
-                    const topCategories = productData.categories.slice(0, 3);
-
-                    const recommendationsResponse = await fetch(
-                        `${apiBaseUrl}/recommendations`,
-                        {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({ categories: topCategories }),
-                        }
-                    );
-
-                    if (!recommendationsResponse.ok) {
-                        throw new Error(
-                            `Recommendations API request failed: ${recommendationsResponse.status}`
-                        );
-                    }
-
-                    chrome.storage.local.set({
-                        detectedProduct: {
-                            name: product.cleanedName,
-                            originalName: product.name,
-                            confidence: product.confidence,
-                            source: product.source,
-                            timestamp: Date.now(),
-                        },
+                    const { ok, code } = await chrome.runtime.sendMessage({
+                        action: "fetchGreenScoreData",
+                        product,
                     });
 
-                    setTimeout(() => {
-                        successPopup.remove();
-                        chrome.runtime.sendMessage({
-                            action: "openReportTab",
-                        });
-                    }, 2000);
-                } catch (apiError: any) {
-                    console.error("[EcoLens] API Error caught:", {
-                        message: apiError.message,
-                        stack: apiError.stack,
-                        name: apiError.name,
-                        error: apiError,
-                    });
-
-                    successPopup.remove();
-
-                    if (apiError.message && apiError.message.includes("404")) {
-                        const failurePopup = document.createElement("div");
-                        failurePopup.innerHTML = `
-                            <div style="
-                                position: fixed;
-                                top: 20px;
-                                right: 20px;
-                                background: #dc2626;
-                                color: white;
-                                padding: 16px 20px;
-                                border-radius: 8px;
-                                font-size: 14px;
-                                z-index: 2147483647;
-                                font-family: system-ui, sans-serif;
-                                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                                max-width: 320px;
-                                line-height: 1.4;
-                            ">
-                                <div style="display: flex; align-items: flex-start; gap: 8px;">
-                                    <span style="font-size: 16px;">❌</span>
-                                    <div>
-                                        <div style="font-weight: 600; margin-bottom: 4px;">
-                                            Unable to find product data
-                                        </div>
-                                        <div style="font-size: 12px; opacity: 0.9;">
-                                            Try manually searching with broader terms
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                        document.body.appendChild(failurePopup);
-
+                    if (ok) {
                         setTimeout(() => {
-                            failurePopup.remove();
-                        }, 5000);
-                    } else {
-                        chrome.storage.local.set({
-                            detectedProduct: {
-                                name: product.cleanedName,
-                                originalName: product.name,
-                                confidence: product.confidence,
-                                source: product.source,
-                                timestamp: Date.now(),
-                            },
-                        });
-
-                        setTimeout(() => {
+                            try {
+                                window.postMessage(
+                                    {
+                                        source: "ecolens",
+                                        channel: "ui",
+                                        action: "unmount",
+                                        mountId: analyzingMount.id,
+                                    },
+                                    "*"
+                                );
+                            } catch {}
+                            analyzingMount.remove();
                             chrome.runtime.sendMessage({
                                 action: "openReportTab",
                             });
-                        }, 1000);
+                        }, 200);
+                        return;
                     }
+
+                    try {
+                        window.postMessage(
+                            {
+                                source: "ecolens",
+                                channel: "ui",
+                                action: "unmount",
+                                mountId: analyzingMount.id,
+                            },
+                            "*"
+                        );
+                    } catch {}
+                    analyzingMount.remove();
+
+                    if (code === 404) {
+                        const failureMount = createFixedTopRightMount();
+                        try {
+                            window.postMessage(
+                                {
+                                    source: "ecolens",
+                                    channel: "ui",
+                                    action: "mount404",
+                                    mountId:
+                                        failureMount.id ||
+                                        (failureMount.id = `ecolens-mount-${Math.random()
+                                            .toString(36)
+                                            .slice(2)}`),
+                                },
+                                "*"
+                            );
+                        } catch {}
+
+                        setTimeout(() => {
+                            try {
+                                window.postMessage(
+                                    {
+                                        source: "ecolens",
+                                        channel: "ui",
+                                        action: "unmount",
+                                        mountId: failureMount.id,
+                                    },
+                                    "*"
+                                );
+                            } catch {}
+                            failureMount.remove();
+                        }, 5000);
+                        return;
+                    }
+
+                    setTimeout(() => {
+                        chrome.runtime.sendMessage({ action: "openReportTab" });
+                    }, 300);
+                    return;
+                } catch (apiError: any) {
+                    console.error("[EcoLens] API Error caught:", apiError);
+                    try {
+                        window.postMessage(
+                            {
+                                source: "ecolens",
+                                channel: "ui",
+                                action: "unmount",
+                                mountId: analyzingMount.id,
+                            },
+                            "*"
+                        );
+                    } catch {}
+                    analyzingMount.remove();
+                    setTimeout(() => {
+                        chrome.runtime.sendMessage({ action: "openReportTab" });
+                    }, 300);
+                    return;
                 }
             }, 400);
         } catch (error) {
@@ -1419,127 +841,6 @@ class ProductScraper {
                 "[EcoLens] Error proceeding with green score:",
                 error
             );
-        }
-    }
-
-    private showProductEditForm(
-        product: ProductInfo,
-        setInteracting?: (interacting: boolean) => void
-    ): void {
-        try {
-            const existingPopup = document.getElementById("ecolens-popup");
-            if (!existingPopup) return;
-
-            existingPopup.innerHTML = `
-                    <div style="text-align: center;">
-                        <div style="font-size: 32px; margin-bottom: 16px;">✏️</div>
-                        <h3 style="
-                            color: #047857;
-                            font-weight: 600;
-                            font-size: 16px;
-                            margin: 0 0 12px 0;
-                        ">Edit Product Name</h3>
-                        <input id="ecolens-edit-input" type="text" value="${product.cleanedName}" style="
-                            width: 100%;
-                            border: 2px solid #d1d5db;
-                            border-radius: 6px;
-                            padding: 8px 12px;
-                            font-size: 14px;
-                            margin: 12px 0;
-                            font-family: system-ui, sans-serif;
-                            outline: none;
-                            transition: border-color 0.2s;
-                        ">
-                        <div style="
-                            background: #fef3c7;
-                            border: 1px solid #f59e0b;
-                            border-radius: 6px;
-                            padding: 8px 12px;
-                            margin: 12px 0 16px 0;
-                        ">
-                            <p style="
-                                font-size: 12px;
-                                color: #92400e;
-                                margin: 0;
-                                font-weight: 500;
-                            ">💡 Remove quantities (2kg, 500ml), sizes (large, small), and unnecessary brand details</p>
-                        </div>
-                        <div style="display: flex; gap: 8px; justify-content: center;">
-                            <button id="ecolens-save" style="
-                                background: #059669;
-                                color: white;
-                                border: none;
-                                border-radius: 6px;
-                                padding: 8px 16px;
-                                font-size: 14px;
-                                font-weight: 500;
-                                cursor: pointer;
-                                transition: all 0.2s;
-                            ">💾 Save & Continue</button>
-                            <button id="ecolens-cancel" style="
-                                background: #6b7280;
-                                color: white;
-                                border: none;
-                                border-radius: 6px;
-                                padding: 8px 16px;
-                                font-size: 14px;
-                                font-weight: 500;
-                                cursor: pointer;
-                                transition: all 0.2s;
-                            ">↩️ Cancel</button>
-                        </div>
-                    </div>
-                `;
-
-            const input = document.getElementById(
-                "ecolens-edit-input"
-            ) as HTMLInputElement;
-            input?.focus();
-            input?.select();
-
-            input?.addEventListener("click", (e) => {
-                e.stopPropagation();
-            });
-
-            input?.addEventListener("focus", (e) => {
-                e.stopPropagation();
-                input.style.borderColor = "#059669";
-                setInteracting?.(true);
-            });
-            input?.addEventListener("blur", () => {
-                input.style.borderColor = "#d1d5db";
-                setInteracting?.(false);
-            });
-            input?.addEventListener("input", (e) => {
-                e.stopPropagation();
-                setInteracting?.(true);
-            });
-
-            document
-                .getElementById("ecolens-save")
-                ?.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    const newName =
-                        (
-                            document.getElementById(
-                                "ecolens-edit-input"
-                            ) as HTMLInputElement
-                        )?.value || product.cleanedName;
-                    const updatedProduct = {
-                        ...product,
-                        cleanedName: newName,
-                    };
-                    this.proceedWithGreenScore(updatedProduct);
-                });
-
-            document
-                .getElementById("ecolens-cancel")
-                ?.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    this.showProductValidation([product], setInteracting);
-                });
-        } catch (error) {
-            console.error("[EcoLens] Error showing edit form:", error);
         }
     }
 }
