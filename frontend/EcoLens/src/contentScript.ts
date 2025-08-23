@@ -1,103 +1,171 @@
-/**
- * # EcoLens Content Script - Intelligent Product Detection System
- *
- * This content script implements sophisticated product detection and user interaction
- * for food sustainability analysis across e-commerce and food retailer websites.
- *
- * ## Architecture Overview:
- *
- * ### Core Components:
- * 1. **ProductScraper Class**: Multi-strategy product extraction engine
- * 2. **Product Detection Logic**: Page scanning and validation algorithms
- * 3. **User Interface System**: Dynamic popup and notification management
- * 4. **Communication Layer**: Message passing with background script and popup
- *
- * ### Product Detection Strategy:
- * The system uses AI-powered screenshot analysis as the primary method:
- *
- * #### Screenshot Analysis with GPT-4 Vision
- * - Captures page screenshot via Chrome extension API
- * - Analyzes visual content using OpenAI GPT-4 Vision
- * - Intelligently detects product pages vs. search results
- * - High accuracy product name extraction
- * - Confidence scoring based on visual analysis
- *
- * ### Product Name Cleaning Pipeline:
- * 1. **Brand/Retailer Removal**: Strips store names and common prefixes
- * 2. **Marketing Term Filtering**: Removes promotional language
- * 3. **Quantity Normalization**: Handles sizes, weights, and pack quantities
- * 4. **Capitalization Fixing**: Proper case for brand recognition
- * 5. **Blacklist Filtering**: Removes non-product terms
- *
- * ### User Interface States:
- * - **Detection Notification**: Subtle page-level product detection alerts
- * - **Product Validation Popup**: Interactive product confirmation interface
- * - **Edit Form**: Manual product name correction interface
- * - **Auto-close Management**: Prevents UI interference during user interaction
- *
- * ## Performance Considerations:
- * - Debounced scanning to prevent excessive processing
- * - Lazy loading of heavy analysis functions
- * - Efficient DOM querying with early termination
- * - Smart retry logic for dynamic content
- *
- * ## Integration Points:
- * - Background script for tab management
- * - Chrome storage for user preferences and data persistence
- * - Fuzzy matcher for food page detection
- * - API utilities for sustainability analysis
- *
- * ## Error Handling:
- * - Graceful degradation when screenshot analysis fails
- * - Clear user feedback for manual search option
- * - Comprehensive logging for debugging
- * - No automatic DOM scraping fallbacks (users can manually search)
- */
-
 "use strict";
 
 import { isFoodPage } from "./utils/fuzzyMatcher.js";
 
-let __ecolensUiLoaded = false;
+let LAST_URL = location.href;
+let RETRY_COUNT = 0;
+const MAX_RETRIES = 5;
+let POPUP_SHOWN_FOR_URL = new Set<string>();
+let IS_PROCESSING = false;
+let AUTO_POPUP_ENABLED = true;
+
+interface ProductInfo {
+    name: string;
+    cleanedName: string;
+    confidence: number;
+    source: string;
+}
+
+let __ECOLENS_UI_LOADED = false;
 async function ensureUIBundle(): Promise<void> {
-    if (__ecolensUiLoaded) return;
+    if (__ECOLENS_UI_LOADED) return;
     await new Promise<void>((resolve) => {
         const s = document.createElement("script");
         s.type = "module";
         s.src = chrome.runtime.getURL("ui-inject.js");
         s.onload = () => {
-            __ecolensUiLoaded = true;
-            try {
-                console.log("[EcoLens] UI bundle loaded", {
-                    hasEcoLensUI: Boolean((window as any).EcoLensUI),
-                });
-            } catch {}
+            __ECOLENS_UI_LOADED = true;
             resolve();
         };
         (document.head || document.documentElement).appendChild(s);
     });
 }
 
-function createFixedTopRightMount(): HTMLDivElement {
+const ScreenshotMessages = {
+    CAPTURE_SCREENSHOT: "captureScreenshot",
+    SCREENSHOT_RESULT: "screenshotResult",
+    SCREENSHOT_ERROR: "screenshotError",
+} as const;
+
+const Z_INDEX_MAX = "2147483647";
+const TOAST_OFFSET_PX = "20px";
+
+/**
+ * Initializes the EcoLens extension.
+ * @returns {void}
+ */
+function initializeEcoLens() {
+    if ((window as any).ecoLensInitialized) {
+        return;
+    }
+    (window as any).ecoLensInitialized = true;
+
+    try {
+        chrome.storage.sync.get(["autoPopupEnabled"], (result) => {
+            if (result.autoPopupEnabled !== undefined) {
+                AUTO_POPUP_ENABLED = result.autoPopupEnabled;
+            }
+
+            try {
+                const scraper = new ProductScraper();
+                const isFoodPage = scraper.isFoodPage();
+
+                if (isFoodPage) {
+                    checkForProducts(window.location.href, false);
+                }
+            } catch (error) {
+                console.error(
+                    "[EcoLens] Error during product checking:",
+                    error
+                );
+            }
+        });
+    } catch (error) {
+        console.warn("[EcoLens] Could not load settings:", error);
+
+        try {
+            const scraper = new ProductScraper();
+            const isFoodPage = scraper.isFoodPage();
+
+            if (isFoodPage) {
+                checkForProducts(window.location.href, false);
+            }
+        } catch (error) {
+            console.error(
+                "[EcoLens] Error during fallback initialization:",
+                error
+            );
+        }
+    }
+}
+
+/**
+ * Posts a message to the window.
+ * @param {any} payload - The payload to post
+ * @returns {void}
+ */
+function postMessage(payload: any): void {
+    window.postMessage(payload, "*");
+}
+
+/**
+ * Creates and appends a mount point div element to the document body.
+ *
+ * @param {Object} options - Configuration options
+ * @param {string} [options.id] - Optional ID to assign to the mount element
+ * @param {boolean} [options.fixedTopRight=false] - Whether to position the mount fixed in the top-right corner
+ * @returns {HTMLDivElement} The created mount element
+ */
+function createMount({
+    id,
+    fixedTopRight = false,
+}: { id?: string; fixedTopRight?: boolean } = {}): HTMLDivElement {
     const mount = document.createElement("div");
-    const style = mount.style;
-    style.position = "fixed";
-    style.top = "20px";
-    style.right = "20px";
-    style.zIndex = "2147483647";
+    if (id) mount.id = id;
+    if (fixedTopRight) {
+        const style = mount.style;
+        style.position = "fixed";
+        style.top = TOAST_OFFSET_PX;
+        style.right = TOAST_OFFSET_PX;
+        style.zIndex = Z_INDEX_MAX;
+    }
     document.body.appendChild(mount);
     return mount;
 }
 
-async function cleanViaBackground(raw: string): Promise<string> {
-    const res = await chrome.runtime.sendMessage({
-        action: "cleanProductName",
-        raw,
-    });
-    if (!res?.ok) throw new Error(res?.error || "clean failed");
-    return res.cleaned;
+/**
+ * Unmounts and removes a UI component.
+ *
+ * @param {HTMLElement | null} el - The element to unmount and remove
+ * @returns {void}
+ */
+function unmountAndRemove(el?: HTMLElement | null): void {
+    if (!el) return;
+    try {
+        postMessage({
+            source: "ecolens",
+            channel: "ui",
+            action: "unmount",
+            mountId: el.id,
+        });
+    } catch {}
+    el.remove();
 }
 
+/**
+ * Creates a fixed top-right mount element.
+ *
+ * @returns {HTMLDivElement} The created mount element
+ */
+function createFixedTopRightMount(): HTMLDivElement {
+    const mount = document.createElement("div");
+    const style = mount.style;
+    style.position = "fixed";
+    style.top = TOAST_OFFSET_PX;
+    style.right = TOAST_OFFSET_PX;
+    style.zIndex = Z_INDEX_MAX;
+    document.body.appendChild(mount);
+    return mount;
+}
+
+/**
+ * Analyzes a screenshot via the background script.
+ *
+ * @param {string} base64Data - The base64 data of the screenshot
+ * @param {string} pageUrl - The URL of the page
+ * @returns {Promise<{products: Array<{name: string, cleanedName?: string, confidence: number, source?: string}>, ok: boolean, error?: string}>} The analysis result
+ * @throws {Error} If the background script fails to analyze the screenshot
+ */
 async function analyzeInBackground(
     base64Data: string,
     pageUrl: string
@@ -137,22 +205,23 @@ async function analyzeInBackground(
     };
 }
 
-const ScreenshotMessages = {
-    CAPTURE_SCREENSHOT: "captureScreenshot",
-    SCREENSHOT_RESULT: "screenshotResult",
-    SCREENSHOT_ERROR: "screenshotError",
-} as const;
-
-interface ProductInfo {
-    name: string;
-    cleanedName: string;
-    confidence: number;
-    source: string;
-}
-
+/**
+ * Product scraper class.
+ *
+ * @class ProductScraper
+ * @constructor
+ * @param {string} base64Data - The base64 data of the screenshot
+ * @param {string} pageUrl - The URL of the page
+ */
 class ProductScraper {
     private loadingMountEl: HTMLDivElement | null = null;
     private overlayMountEl: HTMLDivElement | null = null;
+
+    /**
+     * Scrapes products with screenshot.
+     *
+     * @returns {Promise<ProductInfo[]>} The products found
+     */
     async scrapeProductsWithScreenshot(): Promise<ProductInfo[]> {
         try {
             console.log(
@@ -211,33 +280,23 @@ class ProductScraper {
         }
     }
 
+    /**
+     * Extracts products from screenshot.
+     *
+     * @returns {Promise<ProductInfo[]>} The products found
+     */
     private async extractFromScreenshot(): Promise<ProductInfo[]> {
-        console.log("[EcoLens] Starting screenshot-based extraction");
-
         this.showAnalysisLoadingPopup();
 
         return new Promise((resolve, reject) => {
-            console.log(
-                "[EcoLens] Sending screenshot capture message to background script"
-            );
-
             chrome.runtime.sendMessage(
                 {
                     action: ScreenshotMessages.CAPTURE_SCREENSHOT,
                     options: { format: "jpeg", quality: 80 },
                 },
                 async (response) => {
-                    console.log(
-                        "[EcoLens] Received response from background script:",
-                        response
-                    );
-
                     if (chrome.runtime.lastError) {
                         const error = `Chrome runtime error: ${chrome.runtime.lastError.message}`;
-                        console.error(
-                            "[EcoLens] Runtime error occurred:",
-                            chrome.runtime.lastError
-                        );
                         this.hideAnalysisLoadingPopup();
                         reject(new Error(error));
                         return;
@@ -246,7 +305,6 @@ class ProductScraper {
                     if (!response) {
                         const error =
                             "No response received from background script";
-                        console.error("[EcoLens]", error);
                         this.hideAnalysisLoadingPopup();
                         reject(new Error(error));
                         return;
@@ -256,7 +314,6 @@ class ProductScraper {
                         response.action === ScreenshotMessages.SCREENSHOT_ERROR
                     ) {
                         const error = `Background script error: ${response.error}`;
-                        console.error("[EcoLens]", error);
                         this.hideAnalysisLoadingPopup();
                         reject(new Error(error));
                         return;
@@ -264,12 +321,6 @@ class ProductScraper {
 
                     if (!response.result) {
                         const error = "Response missing result field";
-                        console.error(
-                            "[EcoLens]",
-                            error,
-                            "Full response:",
-                            response
-                        );
                         this.hideAnalysisLoadingPopup();
                         reject(new Error(error));
                         return;
@@ -279,7 +330,6 @@ class ProductScraper {
                         const error = `Screenshot capture unsuccessful: ${
                             response.result.error || "Unknown error"
                         }`;
-                        console.error("[EcoLens]", error);
                         this.hideAnalysisLoadingPopup();
                         reject(new Error(error));
                         return;
@@ -288,24 +338,10 @@ class ProductScraper {
                     if (!response.result.base64Data) {
                         const error =
                             "Screenshot captured but no base64 data received";
-                        console.error(
-                            "[EcoLens]",
-                            error,
-                            "Result:",
-                            response.result
-                        );
                         this.hideAnalysisLoadingPopup();
                         reject(new Error(error));
                         return;
                     }
-
-                    console.log(
-                        "[EcoLens] Screenshot capture successful, base64 data length:",
-                        response.result.base64Data.length
-                    );
-                    console.log(
-                        "[EcoLens] Sending screenshot to API for analysis"
-                    );
 
                     try {
                         const products = await this.analyzeScreenshotWithAPI(
@@ -313,16 +349,8 @@ class ProductScraper {
                             window.location.href
                         );
 
-                        console.log(
-                            "[EcoLens] API analysis completed, products found:",
-                            products.length
-                        );
                         resolve(products);
                     } catch (apiError) {
-                        console.error(
-                            "[EcoLens] API analysis failed:",
-                            apiError
-                        );
                         this.hideAnalysisLoadingPopup();
                         reject(apiError);
                     }
@@ -331,60 +359,63 @@ class ProductScraper {
         });
     }
 
+    /**
+     * Analyzes a screenshot with the background script.
+     *
+     * @param {string} base64Data - The base64 data of the screenshot
+     * @param {string} pageUrl - The URL of the page
+     * @returns {Promise<ProductInfo[]>} The products found
+     */
     private async analyzeScreenshotWithAPI(
         base64Data: string,
         pageUrl: string
     ): Promise<ProductInfo[]> {
-        console.log("[EcoLens] Starting analysis via background worker");
-
         try {
             const bg = await analyzeInBackground(base64Data, pageUrl);
 
             if (!bg.ok) {
                 const errMsg = bg.error || "Unknown background error";
-                console.error(
-                    "[EcoLens] Background analysis reported failure:",
-                    errMsg
-                );
                 throw new Error(errMsg);
             }
 
             const products: ProductInfo[] = [];
             for (const p of bg.products) {
-                try {
-                    const cleaned =
-                        p.cleanedName ?? (await cleanViaBackground(p.name));
+                if (p.cleanedName) {
                     products.push({
                         name: p.name,
-                        cleanedName: cleaned,
+                        cleanedName: p.cleanedName,
                         confidence: p.confidence,
                         source: p.source || "ai-screenshot",
                     });
-                } catch (e) {
+                } else {
                     console.warn(
-                        "[EcoLens] Cleaning failed for product, skipping:",
-                        p?.name,
-                        e
+                        "[EcoLens] Product missing cleanedName, skipping:",
+                        p?.name
                     );
                 }
             }
 
-            console.log(
-                "[EcoLens] Background analysis completed, products found:",
-                products.length
-            );
             return products;
         } catch (error) {
-            console.error("[EcoLens] Background analysis threw:", error);
             throw error instanceof Error ? error : new Error(String(error));
         }
     }
 
+    /**
+     * Checks if the current page is a food page.
+     *
+     * @returns {boolean} Whether the page is a food page
+     */
     public isFoodPage(): boolean {
         const title = document.title;
         return isFoodPage(title);
     }
 
+    /**
+     * Shows a product detection notification.
+     *
+     * @param {ProductInfo} product - The product to show the notification for
+     */
     public showProductDetectionNotification(product: ProductInfo): void {
         try {
             try {
@@ -435,6 +466,10 @@ class ProductScraper {
 
     private loadingPopupId = "ecolens-analysis-loading";
 
+    /**
+     * Shows a loading popup.
+     * @returns {void}
+     */
     public showAnalysisLoadingPopup(): void {
         try {
             const existing = document.getElementById(this.loadingPopupId);
@@ -442,24 +477,18 @@ class ProductScraper {
 
             ensureUIBundle()
                 .then(() => {
-                    const mount = createFixedTopRightMount();
-                    mount.id = this.loadingPopupId;
-                    try {
-                        window.postMessage(
-                            {
-                                source: "ecolens",
-                                channel: "ui",
-                                action: "mount",
-                                mountId: mount.id,
-                                component: "LoadingToast",
-                                props: {
-                                    text: "Analyzing page...",
-                                    timeoutMs: 15000,
-                                },
-                            },
-                            "*"
-                        );
-                    } catch {}
+                    const mount = createMount({
+                        id: this.loadingPopupId,
+                        fixedTopRight: true,
+                    });
+                    postMessage({
+                        source: "ecolens",
+                        channel: "ui",
+                        action: "mount",
+                        mountId: mount.id,
+                        component: "LoadingToast",
+                        props: { text: "Analyzing page...", timeoutMs: 15000 },
+                    });
                     this.loadingMountEl = mount;
                 })
                 .catch((e) =>
@@ -470,64 +499,52 @@ class ProductScraper {
         }
     }
 
+    /**
+     * Hides the analysis loading popup.
+     * @returns {void}
+     */
     public hideAnalysisLoadingPopup(): void {
         try {
             if (this.loadingMountEl) {
-                try {
-                    window.postMessage(
-                        {
-                            source: "ecolens",
-                            channel: "ui",
-                            action: "unmount",
-                            mountId: this.loadingPopupId,
-                        },
-                        "*"
-                    );
-                } catch {}
+                postMessage({
+                    source: "ecolens",
+                    channel: "ui",
+                    action: "unmount",
+                    mountId: this.loadingPopupId,
+                });
                 this.loadingMountEl.remove();
                 this.loadingMountEl = null;
-            } else {
-                const el = document.getElementById(this.loadingPopupId);
-                if (el) el.remove();
+                return;
             }
+            const el = document.getElementById(this.loadingPopupId);
+            if (el) el.remove();
         } catch (error) {
             console.error("[EcoLens] Error hiding loading popup:", error);
         }
     }
 
+    /**
+     * Shows a result message depending on the type of result.
+     * @param {string} type - The type of result message
+     * @returns {void}
+     */
     public showAnalysisResultMessage(type: "no-products" | "error"): void {
         try {
             this.hideAnalysisLoadingPopup();
             ensureUIBundle()
                 .then(() => {
-                    const mount = createFixedTopRightMount();
+                    const mount = createMount({ fixedTopRight: true });
                     const duration = type === "no-products" ? 3000 : 4000;
-                    try {
-                        window.postMessage(
-                            {
-                                source: "ecolens",
-                                channel: "ui",
-                                action: "mount",
-                                mountId: mount.id,
-                                component: "ResultToast",
-                                props: { type },
-                            },
-                            "*"
-                        );
-                    } catch {}
+                    postMessage({
+                        source: "ecolens",
+                        channel: "ui",
+                        action: "mount",
+                        mountId: mount.id,
+                        component: "ResultToast",
+                        props: { type },
+                    });
                     setTimeout(() => {
-                        try {
-                            window.postMessage(
-                                {
-                                    source: "ecolens",
-                                    channel: "ui",
-                                    action: "unmount",
-                                    mountId: mount.id,
-                                },
-                                "*"
-                            );
-                        } catch {}
-                        mount.remove();
+                        unmountAndRemove(mount);
                     }, duration);
                 })
                 .catch((e) =>
@@ -538,6 +555,11 @@ class ProductScraper {
         }
     }
 
+    /**
+     * Shows a product detected popup
+     * @param {ProductInfo[]} products - The products to show the popup for
+     * @returns {void}
+     */
     public showProductDetectedPopup(products: ProductInfo[]): void {
         try {
             ensureUIBundle()
@@ -563,14 +585,11 @@ class ProductScraper {
                             );
                             el.insertAdjacentElement("afterend", mount);
                             try {
-                                window.postMessage(
-                                    {
-                                        source: "ecolens",
-                                        channel: "ui",
-                                        action: "placeholders",
-                                    },
-                                    "*"
-                                );
+                                postMessage({
+                                    source: "ecolens",
+                                    channel: "ui",
+                                    action: "placeholders",
+                                });
                             } catch {}
                             el.__ecolensChipMounted = true;
                             break;
@@ -578,19 +597,14 @@ class ProductScraper {
                     } catch {}
 
                     if (this.overlayMountEl) {
-                        try {
-                            if (this.overlayMountEl.id) {
-                                window.postMessage(
-                                    {
-                                        source: "ecolens",
-                                        channel: "ui",
-                                        action: "unmount",
-                                        mountId: this.overlayMountEl.id,
-                                    },
-                                    "*"
-                                );
-                            }
-                        } catch {}
+                        if (this.overlayMountEl.id) {
+                            postMessage({
+                                source: "ecolens",
+                                channel: "ui",
+                                action: "unmount",
+                                mountId: this.overlayMountEl.id,
+                            });
+                        }
                         this.overlayMountEl.remove();
                         this.overlayMountEl = null;
                     }
@@ -619,19 +633,14 @@ class ProductScraper {
                         };
                         window.addEventListener("message", onBridge);
 
-                        window.postMessage(
-                            {
-                                source: "ecolens",
-                                channel: "ui",
-                                action: "mount",
-                                mountId: mount.id,
-                                component: "DetectedPopup",
-                                props: {
-                                    products,
-                                },
-                            },
-                            "*"
-                        );
+                        postMessage({
+                            source: "ecolens",
+                            channel: "ui",
+                            action: "mount",
+                            mountId: mount.id,
+                            component: "DetectedPopup",
+                            props: { products },
+                        });
                     } catch {}
                 })
                 .catch((e) =>
@@ -642,6 +651,11 @@ class ProductScraper {
         }
     }
 
+    /**
+     * Shows a product validation popup.
+     * @param {ProductInfo[]} products - The products to show the popup for
+     * @returns {void}
+     */
     public showProductValidation(products: ProductInfo[]): void {
         try {
             ensureUIBundle()
@@ -652,26 +666,23 @@ class ProductScraper {
                     }
                     const product = products[0];
                     try {
-                        window.postMessage(
-                            {
-                                source: "ecolens",
-                                channel: "ui",
-                                action: "mount",
-                                mountId:
-                                    this.overlayMountEl.id ||
-                                    (this.overlayMountEl.id = `ecolens-mount-${Math.random()
-                                        .toString(36)
-                                        .slice(2)}`),
-                                component: "ValidationCard",
-                                props: {
-                                    product,
-                                    onYes: () =>
-                                        this.proceedWithGreenScore(product),
-                                    onEdit: () => {},
-                                },
+                        postMessage({
+                            source: "ecolens",
+                            channel: "ui",
+                            action: "mount",
+                            mountId:
+                                this.overlayMountEl.id ||
+                                (this.overlayMountEl.id = `ecolens-mount-${Math.random()
+                                    .toString(36)
+                                    .slice(2)}`),
+                            component: "ValidationCard",
+                            props: {
+                                product,
+                                onYes: () =>
+                                    this.proceedWithGreenScore(product),
+                                onEdit: () => {},
                             },
-                            "*"
-                        );
+                        });
                     } catch {}
                 })
                 .catch((e) =>
@@ -682,6 +693,11 @@ class ProductScraper {
         }
     }
 
+    /**
+     * Proceeds with the green score calculation and opens the report tab.
+     * @param {ProductInfo} product - The product to proceed with
+     * @returns {Promise<void>}
+     */
     private async proceedWithGreenScore(product: ProductInfo): Promise<void> {
         try {
             const popupToRemove = document.getElementById(
@@ -699,43 +715,18 @@ class ProductScraper {
             }
 
             setTimeout(async () => {
-                const spinnerStyle = document.createElement("style");
-                spinnerStyle.textContent = `
-                    @keyframes ecolens-spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                    .ecolens-spinner {
-                        border: 2px solid rgba(255, 255, 255, 0.3);
-                        border-radius: 50%;
-                        border-top: 2px solid white;
-                        width: 16px;
-                        height: 16px;
-                        animation: ecolens-spin 1s linear infinite;
-                        display: inline-block;
-                        margin-right: 8px;
-                        vertical-align: middle;
-                    }
-                `;
-                document.head.appendChild(spinnerStyle);
-
-                const analyzingMount = createFixedTopRightMount();
-                try {
-                    window.postMessage(
-                        {
-                            source: "ecolens",
-                            channel: "ui",
-                            action: "mountAnalyzing",
-                            mountId:
-                                analyzingMount.id ||
-                                (analyzingMount.id = `ecolens-mount-${Math.random()
-                                    .toString(36)
-                                    .slice(2)}`),
-                            props: { text: product.cleanedName },
-                        },
-                        "*"
-                    );
-                } catch {}
+                const analyzingMount = createMount({ fixedTopRight: true });
+                postMessage({
+                    source: "ecolens",
+                    channel: "ui",
+                    action: "mountAnalyzing",
+                    mountId:
+                        analyzingMount.id ||
+                        (analyzingMount.id = `ecolens-mount-${Math.random()
+                            .toString(36)
+                            .slice(2)}`),
+                    props: { text: product.cleanedName },
+                });
 
                 try {
                     const { ok, code } = await chrome.runtime.sendMessage({
@@ -745,18 +736,7 @@ class ProductScraper {
 
                     if (ok) {
                         setTimeout(() => {
-                            try {
-                                window.postMessage(
-                                    {
-                                        source: "ecolens",
-                                        channel: "ui",
-                                        action: "unmount",
-                                        mountId: analyzingMount.id,
-                                    },
-                                    "*"
-                                );
-                            } catch {}
-                            analyzingMount.remove();
+                            unmountAndRemove(analyzingMount);
                             chrome.runtime.sendMessage({
                                 action: "openReportTab",
                             });
@@ -764,18 +744,7 @@ class ProductScraper {
                         return;
                     }
 
-                    try {
-                        window.postMessage(
-                            {
-                                source: "ecolens",
-                                channel: "ui",
-                                action: "unmount",
-                                mountId: analyzingMount.id,
-                            },
-                            "*"
-                        );
-                    } catch {}
-                    analyzingMount.remove();
+                    unmountAndRemove(analyzingMount);
 
                     if (code === 404) {
                         const failureMount = createFixedTopRightMount();
@@ -818,18 +787,7 @@ class ProductScraper {
                     return;
                 } catch (apiError: any) {
                     console.error("[EcoLens] API Error caught:", apiError);
-                    try {
-                        window.postMessage(
-                            {
-                                source: "ecolens",
-                                channel: "ui",
-                                action: "unmount",
-                                mountId: analyzingMount.id,
-                            },
-                            "*"
-                        );
-                    } catch {}
-                    analyzingMount.remove();
+                    unmountAndRemove(analyzingMount);
                     setTimeout(() => {
                         chrome.runtime.sendMessage({ action: "openReportTab" });
                     }, 300);
@@ -845,6 +803,13 @@ class ProductScraper {
     }
 }
 
+/**
+ * Handles messages from the background script.
+ * @param {any} request - The request object
+ * @param {any} _sender - The sender object
+ * @param {any} sendResponse - The sendResponse function
+ * @returns {boolean} Whether the message was handled
+ */
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     if (request.action === "scrapeProducts") {
         const scraper = new ProductScraper();
@@ -865,21 +830,20 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 
         return true;
     } else if (request.action === "updateAutoPopup") {
-        autoPopupEnabled = request.enabled;
+        AUTO_POPUP_ENABLED = request.enabled;
     }
 
     return true;
 });
 
-let lastUrl = location.href;
-let retryCount = 0;
-const maxRetries = 5;
-let popupShownForUrl = new Set<string>();
-let isProcessing = false;
-let autoPopupEnabled = true;
-
+/**
+ * Checks for products on the current page.
+ * @param {string} currentUrl - The current URL
+ * @param {boolean} isRetry - Whether this is a retry
+ * @returns {Promise<void>}
+ */
 const checkForProducts = async (currentUrl: string, isRetry = false) => {
-    if (isProcessing) {
+    if (IS_PROCESSING) {
         return;
     }
 
@@ -887,12 +851,12 @@ const checkForProducts = async (currentUrl: string, isRetry = false) => {
         return;
     }
 
-    if (popupShownForUrl.has(currentUrl)) {
+    if (POPUP_SHOWN_FOR_URL.has(currentUrl)) {
         return;
     }
 
-    popupShownForUrl.add(currentUrl);
-    isProcessing = true;
+    POPUP_SHOWN_FOR_URL.add(currentUrl);
+    IS_PROCESSING = true;
 
     const scraper = new ProductScraper();
     if (scraper.isFoodPage()) {
@@ -920,7 +884,7 @@ const checkForProducts = async (currentUrl: string, isRetry = false) => {
                         );
                     }
 
-                    if (autoPopupEnabled) {
+                    if (AUTO_POPUP_ENABLED) {
                         try {
                             scraper.showProductDetectedPopup(products);
                         } catch (e) {
@@ -932,29 +896,17 @@ const checkForProducts = async (currentUrl: string, isRetry = false) => {
                     } else {
                     }
                 }
-            } else if (isRetry && retryCount < maxRetries) {
-                retryCount++;
+            } else if (isRetry && RETRY_COUNT < MAX_RETRIES) {
+                RETRY_COUNT++;
 
-                popupShownForUrl.delete(currentUrl);
+                POPUP_SHOWN_FOR_URL.delete(currentUrl);
                 setTimeout(() => {
-                    isProcessing = false;
+                    IS_PROCESSING = false;
                     checkForProducts(currentUrl, true);
                 }, 2000);
                 return;
             } else if (!isRetry && products.length === 0) {
-                const isShopee = window.location.hostname.includes("shopee");
-                if (isShopee) {
-                    retryCount = 0;
-
-                    popupShownForUrl.delete(currentUrl);
-                    setTimeout(() => {
-                        isProcessing = false;
-                        checkForProducts(currentUrl, true);
-                    }, 2000);
-                    return;
-                } else {
-                    popupShownForUrl.delete(currentUrl);
-                }
+                POPUP_SHOWN_FOR_URL.delete(currentUrl);
             }
         } catch (screenshotError) {
             console.warn(
@@ -967,9 +919,14 @@ const checkForProducts = async (currentUrl: string, isRetry = false) => {
         }
     }
 
-    isProcessing = false;
+    IS_PROCESSING = false;
 };
 
+/**
+ * Observes mutations on the document and checks for products.
+ * @param {MutationRecord[]} mutations - The mutations to observe
+ * @returns {void}
+ */
 new MutationObserver((mutations) => {
     const relevantMutations = mutations.filter((mutation) => {
         return Array.from(mutation.addedNodes).every((node) => {
@@ -989,11 +946,11 @@ new MutationObserver((mutations) => {
     }
 
     const url = location.href;
-    if (url !== lastUrl) {
-        lastUrl = url;
-        retryCount = 0;
+    if (url !== LAST_URL) {
+        LAST_URL = url;
+        RETRY_COUNT = 0;
 
-        popupShownForUrl.clear();
+        POPUP_SHOWN_FOR_URL.clear();
 
         const existingPopup = document.getElementById("ecolens-product-popup");
         if (existingPopup) {
@@ -1012,51 +969,6 @@ new MutationObserver((mutations) => {
         setTimeout(() => checkForProducts(url, false), 500);
     }
 }).observe(document, { subtree: true, childList: true });
-
-function initializeEcoLens() {
-    if ((window as any).ecoLensInitialized) {
-        return;
-    }
-    (window as any).ecoLensInitialized = true;
-
-    try {
-        chrome.storage.sync.get(["autoPopupEnabled"], (result) => {
-            if (result.autoPopupEnabled !== undefined) {
-                autoPopupEnabled = result.autoPopupEnabled;
-            }
-
-            try {
-                const scraper = new ProductScraper();
-                const isFoodPage = scraper.isFoodPage();
-
-                if (isFoodPage) {
-                    checkForProducts(window.location.href, false);
-                }
-            } catch (error) {
-                console.error(
-                    "[EcoLens] Error during product checking:",
-                    error
-                );
-            }
-        });
-    } catch (error) {
-        console.warn("[EcoLens] Could not load settings:", error);
-
-        try {
-            const scraper = new ProductScraper();
-            const isFoodPage = scraper.isFoodPage();
-
-            if (isFoodPage) {
-                checkForProducts(window.location.href, false);
-            }
-        } catch (error) {
-            console.error(
-                "[EcoLens] Error during fallback initialization:",
-                error
-            );
-        }
-    }
-}
 
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initializeEcoLens);

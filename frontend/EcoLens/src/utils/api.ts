@@ -1,23 +1,3 @@
-/**
- * # EcoLens API Utilities
- *
- * This module handles all API interactions with the EcoLens backend for product sustainability analysis.
- * It provides formatted data structures, recycling code parsing, and API communication functions.
- *
- * ## Key Features:
- * - Recycling code parsing for plastic, paper, glass, and metal materials
- * - Product sustainability data fetching and formatting
- * - Environmental score calculation and breakdown
- * - Recommendations API integration
- *
- * ## Architecture:
- * The module uses a layered approach:
- * 1. Raw data interfaces (ProductData, MaterialScore)
- * 2. Formatted interfaces (FormattedProductData, FormattedRecommendation)
- * 3. Utility functions (parseRecyclingCode, calculateCarbonBreakdown)
- * 4. API functions (getProductInfo, getRecommendations)
- */
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const PLASTIC_CODES: Record<number, string> = {
@@ -288,10 +268,6 @@ const calculateCarbonBreakdown = (
 export const getProductInfo = async (
     productName: string
 ): Promise<FormattedProductData> => {
-    console.log("API_BASE_URL:", API_BASE_URL);
-    console.log("Making request to:", `${API_BASE_URL}/product_info`);
-    console.log("Request body:", JSON.stringify({ product_name: productName }));
-
     let response: Response;
 
     try {
@@ -303,18 +279,13 @@ export const getProductInfo = async (
             body: JSON.stringify({ product_name: productName }),
         });
 
-        console.log("Response status:", response.status);
-        console.log("Response ok:", response.ok);
-
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("API Error response:", errorText);
             throw new Error(
                 `API request failed: ${response.status} - ${errorText}`
             );
         }
     } catch (fetchError) {
-        console.error("Fetch error:", fetchError);
         throw fetchError;
     }
 
@@ -382,7 +353,7 @@ export const getProductInfo = async (
                       ratio: material.environmental_score_shape_ratio,
                   };
               })
-            : [], // Default to empty array if material_scores is null/undefined
+            : [],
     };
 
     return formattedData;
@@ -462,7 +433,6 @@ export interface ScreenshotAnalysisResult {
     page_type: string;
     is_food_related: boolean;
     url_analysis?: string;
-    // New structured analysis fields
     url_analysis_structured?: {
         patterns_found: string[];
         confidence: number;
@@ -490,7 +460,7 @@ export interface ScreenshotAnalysisResponse {
 }
 
 /**
- * Analyzes a screenshot using OpenAI Vision API to detect food products
+ * Analyzes a screenshot to detect food products
  * @param screenshotData - Base64 encoded screenshot data
  * @param pageUrl - Optional URL of the page for context
  * @returns Analysis result with detected products

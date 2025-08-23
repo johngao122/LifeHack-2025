@@ -1,57 +1,7 @@
-/**
- * # EcoLens Main Popup Interface
- *
- * This component implements the primary user interface for the EcoLens browser extension.
- * It provides manual product search capabilities, settings management, and user onboarding
- * through an intuitive popup interface.
- *
- * ## Component Architecture:
- *
- * ### Core Features:
- * 1. **Manual Product Search**: Direct product sustainability analysis via search input
- * 2. **Interactive Tutorial**: Guided onboarding for new users using react-joyride
- * 3. **Settings Management**: Auto-popup preferences and extension configuration
- * 4. **Search Results Display**: Product confidence scoring and result validation
- *
- * ### State Management:
- * - `searchTerm`: Current user input for product search
- * - `searchResults`: Array of detected/analyzed products with confidence scores
- * - `autoPopupEnabled`: User preference for automatic product detection
- * - `runTutorial`: Controls tutorial activation and progression
- * - `showSettings`: Manages settings panel visibility
- *
- * ### User Experience Flow:
- * 1. **First Visit**: Automatic tutorial activation for user onboarding
- * 2. **Manual Search**: Product input → cleaning → API call → results display
- * 3. **Settings Configuration**: Auto-popup toggle with real-time content script updates
- * 4. **Report Generation**: Chrome storage coordination for detailed analysis
- *
- * ### Tutorial System:
- * Uses react-joyride for step-by-step guidance:
- * - Welcome and overview
- * - Search functionality demonstration
- * - Settings explanation
- * - Auto-popup feature walkthrough
- * - Completion and preference storage
- *
- * ### Integration Points:
- * - **Chrome Storage**: Persistent settings and tutorial state
- * - **Content Scripts**: Real-time auto-popup preference updates
- * - **Background Script**: Report tab creation coordination
- * - **API Utilities**: Product analysis and recommendations
- *
- * ## Performance Optimizations:
- * - Lazy API imports to reduce initial bundle size
- * - Debounced search to prevent excessive API calls
- * - Efficient state updates with proper dependency arrays
- * - Memory management for tutorial component cleanup
- */
-
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import Joyride, { STATUS } from "react-joyride";
 import type { CallBackProps, Step } from "react-joyride";
-import { cleanSearchTerm } from "./utils/productCleaner";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Button } from "./components/ui/button";
 import { Switch } from "./components/ui/switch";
@@ -189,9 +139,8 @@ function App() {
             const { getProductInfo, getRecommendations } = await import(
                 "./utils/api"
             );
-            const cleanedSearchTerm = cleanSearchTerm(searchTerm);
 
-            const productData = await getProductInfo(cleanedSearchTerm);
+            const productData = await getProductInfo(searchTerm);
 
             const topCategories = productData.categories.slice(0, 3);
 
@@ -200,7 +149,7 @@ function App() {
             const searchResultData: ProductInfo[] = [
                 {
                     name: searchTerm,
-                    cleanedName: cleanedSearchTerm,
+                    cleanedName: searchTerm,
                     confidence: 0.9,
                     source: "Search Result",
                 },
@@ -210,7 +159,7 @@ function App() {
 
             chrome.storage.local.set({
                 detectedProduct: {
-                    name: cleanedSearchTerm,
+                    name: searchTerm,
                     originalName: searchTerm,
                     confidence: 0.9,
                     source: "Manual Search",
@@ -228,7 +177,7 @@ function App() {
                 const errorResults: ProductInfo[] = [
                     {
                         name: searchTerm,
-                        cleanedName: cleanSearchTerm(searchTerm),
+                        cleanedName: searchTerm,
                         confidence: 0,
                         source: "Product Not Found",
                     },
@@ -239,7 +188,7 @@ function App() {
                 const mockResults: ProductInfo[] = [
                     {
                         name: searchTerm,
-                        cleanedName: cleanSearchTerm(searchTerm),
+                        cleanedName: searchTerm,
                         confidence: 0.9,
                         source: "Search Result",
                     },
@@ -249,7 +198,7 @@ function App() {
 
                 chrome.storage.local.set({
                     detectedProduct: {
-                        name: cleanSearchTerm(searchTerm),
+                        name: searchTerm,
                         originalName: searchTerm,
                         confidence: 0.9,
                         source: "Manual Search",
@@ -284,6 +233,7 @@ function App() {
 
     return (
         <div className="w-96 bg-gradient-to-br from-green-50 to-emerald-50 min-h-screen tutorial-welcome">
+            {/* Tutorial Modal */}
             <Joyride
                 steps={tutorialSteps}
                 run={runTutorial}
@@ -325,7 +275,7 @@ function App() {
                 }}
             />
 
-            {/* Header Section */}
+            {/* Header */}
             <div className="bg-white/70 backdrop-blur-sm border-b border-green-100 px-6 py-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -383,7 +333,7 @@ function App() {
             </div>
 
             <div className="p-6 space-y-6">
-                {/* Settings Panel */}
+                {/* Settings */}
                 {showSettings && (
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
@@ -434,7 +384,7 @@ function App() {
                     </motion.div>
                 )}
 
-                {/* Search Section */}
+                {/* Search */}
                 <div className="space-y-4">
                     <div className="relative">
                         <input
@@ -477,7 +427,7 @@ function App() {
                     </Button>
                 </div>
 
-                {/* Tips Section */}
+                {/* Tips */}
                 <Card className="tutorial-tips border-amber-300 bg-gradient-to-br from-amber-100 to-yellow-100">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-sm text-amber-900 font-semibold flex items-center gap-2">
@@ -506,7 +456,7 @@ function App() {
                     </CardContent>
                 </Card>
 
-                {/* Loading State */}
+                {/* Loading */}
                 {loading && (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -618,9 +568,9 @@ function App() {
                                                         </p>
                                                         <p className="text-xs text-emerald-600 mt-1">
                                                             Search term:{" "}
-                                                            {cleanSearchTerm(
+                                                            {
                                                                 product.cleanedName
-                                                            )}
+                                                            }
                                                         </p>
                                                     </div>
 
