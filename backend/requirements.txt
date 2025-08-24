@@ -8,4 +8,4 @@ sqlmodel
 requests
 pymysql
 openai
-pydantic-settings
+pydantic_settings
