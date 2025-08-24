@@ -225,12 +225,14 @@ class ProductScraper {
      *
      * @returns {Promise<ProductInfo[]>} The products found
      */
-    async scrapeProductsWithScreenshot(): Promise<ProductInfo[]> {
+    async scrapeProductsWithScreenshot(
+        showUI: boolean = true
+    ): Promise<ProductInfo[]> {
         try {
             console.log(
                 "[EcoLens] Attempting screenshot-based product detection"
             );
-            const screenshotProducts = await this.extractFromScreenshot();
+            const screenshotProducts = await this.extractFromScreenshot(showUI);
 
             if (screenshotProducts.length > 0) {
                 console.log(
@@ -238,20 +240,26 @@ class ProductScraper {
                     screenshotProducts
                 );
 
-                this.hideAnalysisLoadingPopup();
+                if (showUI) {
+                    this.hideAnalysisLoadingPopup();
+                }
                 return screenshotProducts;
             } else {
                 console.log(
                     "[EcoLens] Screenshot analysis successful but found no products (likely search results or listing page)"
                 );
 
-                this.showAnalysisResultMessage("no-products");
+                if (showUI) {
+                    this.showAnalysisResultMessage("no-products");
+                }
                 return screenshotProducts;
             }
         } catch (error) {
             console.warn("[EcoLens] Screenshot analysis failed:", error);
 
-            this.showAnalysisResultMessage("error");
+            if (showUI) {
+                this.showAnalysisResultMessage("error");
+            }
 
             if (error instanceof Error) {
                 if (error.message.includes("activeTab permission")) {
@@ -288,8 +296,12 @@ class ProductScraper {
      *
      * @returns {Promise<ProductInfo[]>} The products found
      */
-    private async extractFromScreenshot(): Promise<ProductInfo[]> {
-        this.showAnalysisLoadingPopup();
+    private async extractFromScreenshot(
+        showUI: boolean = true
+    ): Promise<ProductInfo[]> {
+        if (showUI) {
+            this.showAnalysisLoadingPopup();
+        }
 
         return new Promise((resolve, reject) => {
             chrome.runtime.sendMessage(
@@ -300,7 +312,9 @@ class ProductScraper {
                 async (response) => {
                     if (chrome.runtime.lastError) {
                         const error = `Chrome runtime error: ${chrome.runtime.lastError.message}`;
-                        this.hideAnalysisLoadingPopup();
+                        if (showUI) {
+                            this.hideAnalysisLoadingPopup();
+                        }
                         reject(new Error(error));
                         return;
                     }
@@ -308,7 +322,9 @@ class ProductScraper {
                     if (!response) {
                         const error =
                             "No response received from background script";
-                        this.hideAnalysisLoadingPopup();
+                        if (showUI) {
+                            this.hideAnalysisLoadingPopup();
+                        }
                         reject(new Error(error));
                         return;
                     }
@@ -317,14 +333,18 @@ class ProductScraper {
                         response.action === ScreenshotMessages.SCREENSHOT_ERROR
                     ) {
                         const error = `Background script error: ${response.error}`;
-                        this.hideAnalysisLoadingPopup();
+                        if (showUI) {
+                            this.hideAnalysisLoadingPopup();
+                        }
                         reject(new Error(error));
                         return;
                     }
 
                     if (!response.result) {
                         const error = "Response missing result field";
-                        this.hideAnalysisLoadingPopup();
+                        if (showUI) {
+                            this.hideAnalysisLoadingPopup();
+                        }
                         reject(new Error(error));
                         return;
                     }
@@ -333,7 +353,9 @@ class ProductScraper {
                         const error = `Screenshot capture unsuccessful: ${
                             response.result.error || "Unknown error"
                         }`;
-                        this.hideAnalysisLoadingPopup();
+                        if (showUI) {
+                            this.hideAnalysisLoadingPopup();
+                        }
                         reject(new Error(error));
                         return;
                     }
@@ -341,7 +363,9 @@ class ProductScraper {
                     if (!response.result.base64Data) {
                         const error =
                             "Screenshot captured but no base64 data received";
-                        this.hideAnalysisLoadingPopup();
+                        if (showUI) {
+                            this.hideAnalysisLoadingPopup();
+                        }
                         reject(new Error(error));
                         return;
                     }
@@ -354,7 +378,9 @@ class ProductScraper {
 
                         resolve(products);
                     } catch (apiError) {
-                        this.hideAnalysisLoadingPopup();
+                        if (showUI) {
+                            this.hideAnalysisLoadingPopup();
+                        }
                         reject(apiError);
                     }
                 }
@@ -871,7 +897,9 @@ const checkForProducts = async (currentUrl: string, isRetry = false) => {
     const scraper = new ProductScraper();
     if (await scraper.isFoodPage()) {
         try {
-            const products = await scraper.scrapeProductsWithScreenshot();
+            const products = await scraper.scrapeProductsWithScreenshot(
+                AUTO_POPUP_ENABLED
+            );
 
             if (products.length > 0) {
                 if (location.href === currentUrl) {
