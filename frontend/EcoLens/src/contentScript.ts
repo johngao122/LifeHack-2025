@@ -47,21 +47,21 @@ const TOAST_OFFSET_PX = "20px";
  * Initializes the EcoLens extension.
  * @returns {void}
  */
-function initializeEcoLens() {
+async function initializeEcoLens() {
     if ((window as any).ecoLensInitialized) {
         return;
     }
     (window as any).ecoLensInitialized = true;
 
     try {
-        chrome.storage.sync.get(["autoPopupEnabled"], (result) => {
+        chrome.storage.sync.get(["autoPopupEnabled"], async (result) => {
             if (result.autoPopupEnabled !== undefined) {
                 AUTO_POPUP_ENABLED = result.autoPopupEnabled;
             }
 
             try {
                 const scraper = new ProductScraper();
-                const isFoodPage = scraper.isFoodPage();
+                const isFoodPage = await scraper.isFoodPage();
 
                 if (isFoodPage) {
                     checkForProducts(window.location.href, false);
@@ -78,7 +78,7 @@ function initializeEcoLens() {
 
         try {
             const scraper = new ProductScraper();
-            const isFoodPage = scraper.isFoodPage();
+            const isFoodPage = await scraper.isFoodPage();
 
             if (isFoodPage) {
                 checkForProducts(window.location.href, false);
@@ -409,9 +409,9 @@ class ProductScraper {
      *
      * @returns {boolean} Whether the page is a food page
      */
-    public isFoodPage(): boolean {
+    public async isFoodPage(): Promise<boolean> {
         const title = document.title;
-        return isFoodPage(title);
+        return await isFoodPage(title);
     }
 
     /**
@@ -869,7 +869,7 @@ const checkForProducts = async (currentUrl: string, isRetry = false) => {
     LAST_ANALYSIS_AT.set(currentUrl, now);
 
     const scraper = new ProductScraper();
-    if (scraper.isFoodPage()) {
+    if (await scraper.isFoodPage()) {
         try {
             const products = await scraper.scrapeProductsWithScreenshot();
 

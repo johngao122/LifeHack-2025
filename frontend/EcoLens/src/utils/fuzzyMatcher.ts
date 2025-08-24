@@ -1,56 +1,78 @@
-import Fuse from "fuse.js";
-import categoriesData from "../data/categories.json";
-import foodData from "../data/FoodData_Central_foundation_food_json_2025-04-24.json";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-const foodTerms = categoriesData.tags.map((tag) => tag.name.toLowerCase());
+/**
+ * Search categories via API
+ */
+async function searchCategoriesAPI(
+    query: string,
+    limit: number = 10
+): Promise<Array<{ term: string; score: number }>> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/categories/search?q=${encodeURIComponent(
+                query
+            )}&limit=${limit}`
+        );
+        if (!response.ok) {
+            throw new Error(`API request failed: ${response.status}`);
+        }
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error("Error searching categories:", error);
+        return [];
+    }
+}
 
-const categoriesFuse = new Fuse(foodTerms, {
-    threshold: 0.1,
-    includeScore: true,
-    minMatchCharLength: 3,
-    ignoreLocation: true,
-});
-
-const foodDescriptions = (foodData as any).FoundationFoods.map((food: any) => ({
-    description: food.description.toLowerCase(),
-    originalDescription: food.description,
-}));
-
-const foodDescriptionsFuse = new Fuse(foodDescriptions, {
-    keys: ["description"],
-    threshold: 0.2,
-    includeScore: true,
-    minMatchCharLength: 3,
-    ignoreLocation: true,
-});
+/**
+ * Search foundation foods via API
+ */
+async function searchFoundationFoodsAPI(
+    query: string,
+    limit: number = 10
+): Promise<Array<{ description: string; score: number }>> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/foundation_foods/search?q=${encodeURIComponent(
+                query
+            )}&limit=${limit}`
+        );
+        if (!response.ok) {
+            throw new Error(`API request failed: ${response.status}`);
+        }
+        const data = await response.json();
+        return data.map((item: any) => ({
+            description: item.originalDescription || item.description,
+            score: item.score,
+        }));
+    } catch (error) {
+        console.error("Error searching foundation foods:", error);
+        return [];
+    }
+}
 
 /**
  * Search for food matches in actual food descriptions
  * @param query - The search query
- * @returns Array of matching food descriptions with scores
+ * @returns Promise of array of matching food descriptions with scores
  */
-export function searchFoodDescriptions(
+export async function searchFoodDescriptions(
     query: string
-): Array<{ description: string; score: number }> {
+): Promise<Array<{ description: string; score: number }>> {
     if (!query || query.trim().length === 0) {
         return [];
     }
 
     const cleaned = query.toLowerCase().trim();
-    const results = foodDescriptionsFuse.search(cleaned);
-
-    return results.map((result: any) => ({
-        description: result.item.originalDescription,
-        score: result.score || 0,
-    }));
+    return await searchFoundationFoodsAPI(cleaned);
 }
 
 /**
  * Check if a title contains food-related terms by searching actual food descriptions
  * @param title - The page title to check
- * @returns boolean indicating if the title matches food descriptions
+ * @returns Promise of boolean indicating if the title matches food descriptions
  */
-export function isFoodPage(title: string): boolean {
+export async function isFoodPage(title: string): Promise<boolean> {
     if (!title || title.trim().length === 0) {
         return false;
     }
@@ -60,21 +82,10 @@ export function isFoodPage(title: string): boolean {
     const tokens = cleaned
         .split(/[\s\-|,()[\]{}]+/)
         .filter((token) => token.length >= 3)
-        .filter((token) => !/^\d+[a-z]*$/.test(token))
-        .filter(
-            (token) =>
-                ![
-                    "www",
-                    "com",
-                    "net",
-                    "org",
-                    "singapore",
-                    "fairprice",
-                ].includes(token)
-        );
+        .filter((token) => !/^\d+[a-z]*$/.test(token));
 
     for (const token of tokens) {
-        const foodResults = foodDescriptionsFuse.search(token);
+        const foodResults = await searchFoundationFoodsAPI(token, 1);
 
         if (foodResults.length > 0) {
             return true;
@@ -87,20 +98,15 @@ export function isFoodPage(title: string): boolean {
 /**
  * Get the best matching food categories for a given title
  * @param title - The page title to analyze
- * @returns Array of matching food category names with scores
+ * @returns Promise of array of matching food category names with scores
  */
-export function getFoodMatches(
+export async function getFoodMatches(
     title: string
-): Array<{ term: string; score: number }> {
+): Promise<Array<{ term: string; score: number }>> {
     if (!title || title.trim().length === 0) {
         return [];
     }
 
     const cleaned = title.toLowerCase().trim();
-    const results = categoriesFuse.search(cleaned);
-
-    return results.map((result) => ({
-        term: result.item,
-        score: result.score || 0,
-    }));
+    return await searchCategoriesAPI(cleaned);
 }
