@@ -209,7 +209,6 @@ class FoundationFoodsMigrator:
         self.batch_processor.process_in_batches(foods, process_foods_batch)
         
         
-        logger.info("=== MIGRATING FOOD NUTRIENTS ===")
         def process_nutrients_batch(batch):
             nonlocal total_nutrients
             inserted = self.insert_nutrients_batch(batch)
@@ -218,7 +217,6 @@ class FoundationFoodsMigrator:
         self.batch_processor.process_in_batches(foods, process_nutrients_batch)
         
         
-        logger.info("=== MIGRATING FOOD PORTIONS ===")
         def process_portions_batch(batch):
             nonlocal total_portions
             inserted = self.insert_portions_batch(batch)
@@ -227,7 +225,6 @@ class FoundationFoodsMigrator:
         self.batch_processor.process_in_batches(foods, process_portions_batch)
         
         
-        logger.info("=== MIGRATING INPUT FOODS ===")
         def process_input_foods_batch(batch):
             nonlocal total_input_foods
             inserted = self.insert_input_foods_batch(batch)
@@ -307,10 +304,10 @@ def main():
             logger.info(f"{key}: {value}")
         
         if results['errors'] > 0:
-            logger.warning("Migration completed with errors. Check migration.log for details.")
+            logger.warning("Migration completed with errors.")
             sys.exit(1)
         else:
-            logger.info("Foundation foods migration completed successfully!")
+            logger.info("Migration completed successfully!")
             
     except Exception as e:
         logger.error(f"Migration failed: {e}")
