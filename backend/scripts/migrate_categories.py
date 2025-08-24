@@ -26,12 +26,12 @@ class CategoriesMigrator:
     def create_tables(self):
         try:
             SQLModel.metadata.create_all(self.engine)
-            logger.info("Database tables created successfully")
+            logger.info("tables created successfully")
         except Exception as e:
-            raise MigrationError(f"Failed to create database tables: {e}")
+            raise MigrationError(f"Failed to create tables cuz of: {e}")
     
     def load_categories_data(self, file_path: str) -> List[Dict[str, Any]]:
-        logger.info(f"Loading categories data from: {file_path}")
+        logger.info(f"Loading data from: {file_path}")
         
         try:
             data = self.file_handler.load_json_file(file_path)
@@ -39,10 +39,10 @@ class CategoriesMigrator:
             logger.info(f"Loaded {len(categories)} categories from file")
             return categories
         except Exception as e:
-            raise MigrationError(f"Failed to load categories data: {e}")
+            raise MigrationError(f"Failed to load data: {e}")
     
     def validate_categories_data(self, categories: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        logger.info("Validating categories data...")
+        logger.info("Validating data...")
         
         valid_categories = []
         invalid_count = 0
@@ -52,13 +52,13 @@ class CategoriesMigrator:
                 valid_categories.append(category)
             else:
                 invalid_count += 1
-                self.tracker.add_error(f"Invalid category data: {category}")
+                self.tracker.add_error(f"Invalid data: {category}")
         
-        logger.info(f"Validation complete: {len(valid_categories)} valid, {invalid_count} invalid")
+        logger.info(f"{len(valid_categories)} valid, {invalid_count} invalid")
         return valid_categories
     
     def transform_categories_data(self, categories: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        logger.info("Transforming categories data...")
+        logger.info("Transforming data")
         
         transformed_categories = []
         for category in categories:
@@ -66,13 +66,13 @@ class CategoriesMigrator:
                 transformed = self.transformer.transform_category(category)
                 transformed_categories.append(transformed)
             except Exception as e:
-                self.tracker.add_error(f"Failed to transform category {category.get('id', 'unknown')}: {e}")
+                self.tracker.add_error(f"Failed to transform catgory {category.get('id', 'unknown')}: {e}")
         
         logger.info(f"Transformed {len(transformed_categories)} categories")
         return transformed_categories
     
     def insert_categories(self, categories: List[Dict[str, Any]]) -> int:
-        logger.info("Inserting categories into database...")
+        logger.info("Inserting data")
         
         inserted_count = 0
         skipped_count = 0
@@ -83,7 +83,7 @@ class CategoriesMigrator:
                     
                     existing = session.get(FoodCategory, category_data['id'])
                     if existing:
-                        logger.debug(f"Category {category_data['id']} already exists, skipping")
+                        logger.debug(f"Category {category_data['id']} already exists")
                         skipped_count += 1
                         continue
                     
@@ -95,22 +95,22 @@ class CategoriesMigrator:
                     
                     if inserted_count % 100 == 0:
                         session.commit()
-                        logger.info(f"Committed batch: {inserted_count} categories inserted")
+                        logger.info(f"Committed batch: {inserted_count} categories")
                 
                 except Exception as e:
                     session.rollback()
-                    self.tracker.add_error(f"Failed to insert category {category_data.get('id', 'unknown')}: {e}")
+                    self.tracker.add_error(f"Failed to insert category {category_data.get('id', 'unknown')}")
                     continue
             
             
             try:
                 session.commit()
-                logger.info(f"Final commit: {inserted_count} total categories inserted")
+                logger.info(f"Final commit: {inserted_count} total categories")
             except Exception as e:
                 session.rollback()
-                raise MigrationError(f"Failed to commit final batch: {e}")
+                raise MigrationError(f"Failed to commit this  batch: {e}")
         
-        logger.info(f"Categories insertion complete: {inserted_count} inserted, {skipped_count} skipped")
+        logger.info(f"insertion complete: {inserted_count} inserted, {skipped_count} skipped")
         return inserted_count
     
     def migrate(self, categories_file_path: str) -> Dict[str, int]:
@@ -161,10 +161,10 @@ def main():
             logger.info(f"{key}: {value}")
         
         if results['errors'] > 0:
-            logger.warning("Migration completed with errors. Check migration.log for details.")
+            logger.warning("Migration completed with errors.")
             sys.exit(1)
         else:
-            logger.info("Categories migration completed successfully!")
+            logger.info("Migration completed successfully")
             
     except Exception as e:
         logger.error(f"Migration failed: {e}")

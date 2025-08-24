@@ -1,15 +1,11 @@
-"""
-Migration utilities for data validation, transformation, and error handling.
-"""
-
 import json
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Union
 from pathlib import Path
 import sys
 from datetime import datetime
 
-# Setup logging
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -23,16 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 class MigrationError(Exception):
-    """Custom exception for migration errors."""
     pass
 
 
 class DataValidator:
-    """Validates data before insertion into database."""
     
     @staticmethod
     def validate_category(category: Dict[str, Any]) -> bool:
-        """Validate food category data structure."""
         required_fields = ['id', 'name', 'products']
         
         for field in required_fields:
@@ -40,7 +33,7 @@ class DataValidator:
                 logger.error(f"Missing required field '{field}' in category: {category}")
                 return False
                 
-        # Validate data types
+        
         if not isinstance(category['id'], str) or not category['id'].strip():
             logger.error(f"Invalid category ID: {category.get('id')}")
             return False
@@ -57,7 +50,6 @@ class DataValidator:
     
     @staticmethod
     def validate_foundation_food(food: Dict[str, Any]) -> bool:
-        """Validate foundation food data structure."""
         required_fields = ['fdcId', 'description', 'dataType']
         
         for field in required_fields:
@@ -65,7 +57,7 @@ class DataValidator:
                 logger.error(f"Missing required field '{field}' in food: {food}")
                 return False
                 
-        # Validate data types
+        
         if not isinstance(food['fdcId'], int):
             logger.error(f"Invalid fdcId: {food.get('fdcId')}")
             return False
@@ -82,7 +74,6 @@ class DataValidator:
     
     @staticmethod
     def validate_food_nutrient(nutrient: Dict[str, Any]) -> bool:
-        """Validate food nutrient data structure."""
         required_fields = ['id', 'nutrient']
         
         for field in required_fields:
@@ -90,7 +81,7 @@ class DataValidator:
                 logger.error(f"Missing required field '{field}' in nutrient: {nutrient}")
                 return False
                 
-        # Validate nutrient structure
+        
         nutrient_info = nutrient.get('nutrient', {})
         if not isinstance(nutrient_info, dict):
             logger.error(f"Invalid nutrient structure: {nutrient_info}")
@@ -106,11 +97,9 @@ class DataValidator:
 
 
 class DataTransformer:
-    """Transforms raw JSON data into database-compatible format."""
     
     @staticmethod
     def transform_category(category: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform category data for database insertion."""
         transformed = {
             'id': category['id'],
             'name': category['name'],
@@ -119,7 +108,7 @@ class DataTransformer:
             'known': category.get('known', 0)
         }
         
-        # Extract Wikidata URL from sameAs array
+        
         same_as = category.get('sameAs', [])
         wikidata_url = None
         if isinstance(same_as, list):
@@ -134,7 +123,6 @@ class DataTransformer:
     
     @staticmethod
     def transform_foundation_food(food: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform foundation food data for database insertion."""
         food_category = food.get('foodCategory', {})
         
         transformed = {
@@ -152,7 +140,6 @@ class DataTransformer:
     
     @staticmethod
     def transform_food_nutrient(nutrient: Dict[str, Any], fdc_id: int) -> Dict[str, Any]:
-        """Transform food nutrient data for database insertion."""
         nutrient_info = nutrient.get('nutrient', {})
         derivation = nutrient.get('foodNutrientDerivation', {})
         derivation_source = derivation.get('foodNutrientSource', {})
@@ -181,7 +168,6 @@ class DataTransformer:
     
     @staticmethod
     def transform_food_portion(portion: Dict[str, Any], fdc_id: int) -> Dict[str, Any]:
-        """Transform food portion data for database insertion."""
         measure_unit = portion.get('measureUnit', {})
         
         transformed = {
@@ -202,7 +188,6 @@ class DataTransformer:
     
     @staticmethod
     def transform_input_food(input_food_data: Dict[str, Any], fdc_id: int) -> Dict[str, Any]:
-        """Transform input food data for database insertion."""
         input_food = input_food_data.get('inputFood', {})
         input_category = input_food.get('foodCategory', {})
         
@@ -224,11 +209,9 @@ class DataTransformer:
 
 
 class FileHandler:
-    """Handles file operations for migration."""
     
     @staticmethod
     def load_json_file(file_path: Union[str, Path]) -> Dict[str, Any]:
-        """Load and parse JSON file."""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -241,13 +224,11 @@ class FileHandler:
 
 
 class BatchProcessor:
-    """Processes data in batches for efficient database insertion."""
     
     def __init__(self, batch_size: int = 1000):
         self.batch_size = batch_size
     
     def process_in_batches(self, data: List[Any], process_func) -> None:
-        """Process data in batches using the provided function."""
         total = len(data)
         processed = 0
         
@@ -263,7 +244,6 @@ class BatchProcessor:
 
 
 class MigrationTracker:
-    """Tracks migration progress and handles rollback."""
     
     def __init__(self):
         self.start_time = None
@@ -272,25 +252,21 @@ class MigrationTracker:
         self.processed_counts = {}
     
     def start(self):
-        """Start migration tracking."""
         self.start_time = datetime.now()
         logger.info(f"Migration started at {self.start_time}")
     
     def end(self):
-        """End migration tracking."""
         self.end_time = datetime.now()
         duration = self.end_time - self.start_time
         logger.info(f"Migration completed at {self.end_time}")
-        logger.info(f"Total duration: {duration}")
+        logger.info(f"This took {duration}")
         logger.info(f"Processed counts: {self.processed_counts}")
         if self.errors:
             logger.warning(f"Migration completed with {len(self.errors)} errors")
     
     def add_error(self, error: str):
-        """Add error to tracking."""
         self.errors.append(error)
         logger.error(error)
     
     def update_count(self, table: str, count: int):
-        """Update processed count for a table."""
         self.processed_counts[table] = count
