@@ -1,3 +1,3 @@
-from . import products, recommendations, analysis
+from . import products, recommendations, analysis, categories, foundation_foods
 
-__all__ = ["products", "recommendations", "analysis"]
+__all__ = ["products", "recommendations", "analysis", "categories", "foundation_foods"]

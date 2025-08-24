@@ -17,7 +17,7 @@ from app.database import create_db_and_tables
 from app.core import setup_cors, setup_security_headers
 from app.core.exceptions import setup_exception_handlers
 from app.utils import setup_logging
-from app.api.routes import products, recommendations, analysis
+from app.api.routes import products, recommendations, analysis, categories, foundation_foods
 
 setup_logging(level="DEBUG" if settings.debug else "INFO")
 
@@ -37,6 +37,8 @@ setup_exception_handlers(app)
 app.include_router(products.router, tags=["products"])
 app.include_router(recommendations.router, tags=["recommendations"])  
 app.include_router(analysis.router, tags=["analysis"])
+app.include_router(categories.router, prefix="/api/categories", tags=["categories"])
+app.include_router(foundation_foods.router, prefix="/api/foundation_foods", tags=["foundation_foods"])
 
 @app.on_event("startup")
 async def startup_event():
